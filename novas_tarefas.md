@@ -1,8 +1,8 @@
 # Tarefas
 
-`**************------` **70%**
+`**************------` **68%**
 
-**Total:** 40  ·  **Pendentes:** 12  ·  **Feitas (aguardando fechamento):** 1  ·  **Concluídas:** 27
+**Total:** 41  ·  **Pendentes:** 13  ·  **Feitas (aguardando fechamento):** 0  ·  **Concluídas:** 28
 
 ---
 
@@ -15,10 +15,6 @@
   O percentual mudou sem renomear o campo. Definir qual é a regra vigente **antes** de implementar o
   motor de cálculo. → `docs/11-dicionario-dados.md`, `docs/08-fluxos.md`
 
-- [ ] **2.** Definir se haverá **portal externo** para cliente e parceiro. Hoje eles não acessam o
-  sistema — tudo passa pela Pinho. A resposta muda a modelagem de `auth` (escopo de dados por
-  tenant desde o início) e o desenho das telas de acesso. → `docs/07-modulos.md`
-
 - [ ] **3.** Confirmar se as regras **`fl*NaoCliente`** ainda são usadas (verba que entra na base da
   seguradora mas não é repassada ao cliente). Existem no modelo legado, mas não aparecem em nenhuma
   tela. → `docs/11-dicionario-dados.md`
@@ -29,9 +25,6 @@
 - [ ] **5.** Definir escopo de **Sinistros** e **Cartas de Protesto**. Têm endpoints e telas completas
   no legado, mas estão fora do menu. Aparentam ser relevantes para o negócio.
 
-- [ ] **6.** Verificar com a Infoline se a rota **`ComandosSqlSelecaoComponent`** (console de SQL
-  arbitrário) está ativa em produção. Risco de segurança. Não replicar no sistema novo.
-
 - [ ] **7.** Obter o **prêmio mínimo por apólice**. O cálculo o aplica (conferido: 20,41 → 30,00), mas
   o campo não aparece na tela de Apólices. Descobrir onde está configurado hoje.
 
@@ -39,9 +32,6 @@
 
 - [ ] **29.** **Integração com o SIGRA** (agenciamento, importação e exportação). Puxar a documentação
   que hoje chega por e-mail. Descobrir se há API, banco ou exportação de arquivo.
-
-- [ ] **31.** **Comunicação dentro da plataforma.** Hoje tudo passa por e-mail. Timeline de mensagens
-  e anexos por processo, substituindo a caixa de entrada como sistema de registro.
 
 ### Próximos passos
 
@@ -52,15 +42,22 @@
 - [ ] **15.** Configurar SMTP no `backend/.env`. Hoje os e-mails de convite e recuperação são apenas
   escritos no log do servidor.
 
-- [ ] **21.** **Definir a fonte oficial do câmbio.** A PTAX do Banco Central foi importada e comparada
-  com os valores que estão hoje no legado: a diferença é **sistemática, de +6,0% a +6,4%** em todos os
-  dias conferidos (13/08/2026: PTAX 5,1859 × legado 5,4944). Não é erro de digitação — é outra fonte.
-  Hipóteses: taxa fiscal da Receita, dólar comercial de venda com spread, ou markup próprio da corretora.
-  Confirmar com o cliente antes de trocar a origem do dado. A coluna `source` já distingue
-  `PTAX` de `MANUAL`, então dá para conviver com as duas.
+- [ ] **41.** **Clonar o banco de dados de produção do projeto (`seguros`) para um ambiente local.**
+  Permite testar mudanças de schema e rodar queries pesadas sem impactar produção.
 
-- [ ] **22.** Investigar por que o **CNY (yuan)** não retorna cotação na API do BCB — as outras 10 moedas
-  importaram normalmente.
+- [ ] **42.** **Clonar o banco do SIGRA (`sigraweb`) para um ambiente local.** Usar os certificados em
+  `backend/certs/sigra/` e as credenciais já configuradas no `.env` (ver `docs/SIGRA_DB.md`). Evita
+  consultas pesadas direto no banco de produção de terceiro.
+
+- [ ] **43.** **Mapear o banco do SIGRA e identificar quais dados são úteis para este projeto**, a partir
+  da cópia local (tarefa 42). Levantar, dentro do schema `pinho`, quais tabelas/campos (processo,
+  datas, valores, itens) fazem sentido entrar no fluxo de cotação/apólice/sinistro. Complementa
+  `docs/SIGRA_DB.md` e a tarefa 29.
+
+- [ ] **44.** **Fazer a integração de dados com o SIGRA**, a partir do mapeamento da tarefa 43 — trazer
+  os campos úteis (datas do processo, valores, itens) para dentro do sistema de seguros.
+
+- [ ] **45.** **Subir o projeto na VM e colocar para rodar em produção.**
 
 ---
 
@@ -87,6 +84,7 @@
 - [x] **27.** **Taxa por cliente.** — `ClientRate` com escopo opcional e cumulativo (ramo, apólice, cobertura, tipo de mercadoria, modal) e vigência; a regra mais específica vence, empate resolvido pela vigência mais recente. Precedência validada na API: apólice 0,25% → taxa geral do cliente 0,18% → taxa aérea 0,42% → digitada 0,90%. **12 testes** cobrindo especificidade, escopo, vigência e desempate.
 - [x] **28.** **Averbação mensal em lote.** — `EndorsementBatch` por competência × seguradora, com prévia do que ainda não entrou em lote, fechamento que congela itens e totais, e exportação CSV (separador `;` + BOM, abre direto no Excel pt-BR). ⚠️ **O layout do arquivo é uma proposta** — precisa ser validado com cada seguradora.
 - [x] **30.** **Referências externas por processo.** — tabela `ExternalReference` com origem (Pinho, SIGRA, cliente, parceiro, seguradora, outra); um processo carrega quantas precisar e `GET /quotes/by-reference` localiza o processo por qualquer uma delas.
+- [x] **31.** **Comunicação dentro da plataforma.** Hoje tudo passa por e-mail. Timeline de mensagens e anexos por processo, substituindo a caixa de entrada como sistema de registro. — módulo `communications`: timeline por processo com anexos persistidos (`Attachment`/`Message`), envio via Gmail OAuth por operador (`GmailAccount`), editor de texto rico com Tiptap. Inspirado na composição de e-mail do projeto WBX (aba "Resumo"), mas com anexos persistidos e log gravado no mesmo fluxo do envio — no WBX o log era gravado pelo cliente após o envio e podia se perder. ⚠️ **Exige configurar `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_OAUTH_REDIRECT_URI`** (Google Cloud Console, credencial OAuth "Aplicativo Web", escopo `gmail.send`) para o botão "Conectar Gmail" funcionar. Templates de assunto/corpo por tipo de e-mail (equivalente aos ~18 do WBX) ficaram fora do escopo — a composição hoje é livre.
 - [x] **32.** **Extrato mensal** com o acréscimo aplicado. — agrupado por cliente, com colunas separadas para *prêmio original*, *acréscimo* e *total a enviar*, mais um aviso no topo. O percentual vem dos Parâmetros. **Segue valendo confirmar se é o mesmo agravo da tarefa 1.**
 - [x] **33.** **Extrato de comissão** consolidado por período e por parceiro/vendedor. — visão "Extrato" agrupa por favorecido com total, pago e em aberto; a visão "Lançamentos" permite selecionar, solicitar NF e registrar pagamento em lote.
 - [x] **34.** **Trava de atracação.** "Só pode fazer a averbação quando a carga está atracada." — a definitiva exige data de atracação e recusa data futura; validado que ambos os casos são barrados.

@@ -98,12 +98,20 @@ export function AuthLayout({ title, description, children, footer }: AuthLayoutP
   );
 }
 
-export function Brand({ light }: { light?: boolean }) {
+export function Brand({ light, chip }: { light?: boolean; chip?: boolean }) {
   return (
     <img
       src={logo}
       alt="Coomex"
-      className={cn('h-7 w-auto', light && 'rounded-md bg-white px-2.5 py-1.5')}
+      className={cn(
+        chip ? 'h-9' : 'h-7',
+        'w-auto',
+        light && 'rounded-md bg-white px-2.5 py-1.5',
+        // Fundo do JPEG não é branco puro: é o cinza neutro #F7F7F7 (medido
+        // nos cantos vazios da imagem). Usamos o mesmo tom no chip para a
+        // borda da imagem não aparecer sobre o bg-surface branco da sidebar.
+        chip && 'rounded-md bg-[#F7F7F7] px-2.5 py-1.5',
+      )}
     />
   );
 }

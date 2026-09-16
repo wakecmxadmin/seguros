@@ -131,6 +131,21 @@ provisórias sem baixa, cotações sem resposta.
 Não existe no legado. Necessário para atacar as 10.279 pendências acumuladas:
 alerta de data limite de pendência, cotação parada, provisória sem definitiva, apólice a vencer.
 
+## 12. `communications` — Comunicação por processo
+Entidades: `Message`, `Attachment`, `MessageAttachment`, `GmailAccount`.
+
+Não existe no legado — hoje tudo passa por e-mail pessoal, fora do sistema. Ver
+`docs/12-reuniao-cliente.md` § 5 (tarefa 31).
+
+Escopo:
+- Timeline de mensagens por processo, com anexos persistidos (reaproveitáveis entre mensagens),
+  como aba "Comunicação" na tela do processo.
+- Envio via Gmail OAuth por operador (cada um conecta a própria conta) — exige
+  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_OAUTH_REDIRECT_URI` no `.env` do backend.
+- Registro do envio gravado no mesmo fluxo da chamada à API do Gmail, para nunca perder o
+  histórico mesmo se o envio falhar.
+- **Fora do escopo por ora**: templates de assunto/corpo por tipo de e-mail — a composição é livre.
+
 ---
 
 ## Ordem de implementação sugerida

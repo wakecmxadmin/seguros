@@ -101,7 +101,7 @@ export function AppLayout() {
       >
         <div className="flex h-16 items-center justify-between border-b border-border px-5">
           <Link to="/" onClick={() => setNavOpen(false)}>
-            <Brand />
+            <Brand chip />
           </Link>
           <button
             onClick={() => setNavOpen(false)}
@@ -207,7 +207,7 @@ export function AppLayout() {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <Brand />
+          <Brand chip />
         </header>
 
         <main className="flex-1 overflow-x-hidden">
