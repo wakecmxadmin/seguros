@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Marca — medida na plataforma legada.
+       Azul institucional #17348C · teal de ação #009DBE · dourado Coomex #B99A5B */
+    --navy: 224 72% 32%;
+    --navy-deep: 224 71% 22%;
+    --navy-soft: 224 45% 92%;
+    --teal: 191 100% 37%;
+    --teal-hover: 191 100% 31%;
+    --gold: 38 36% 54%;
+
+    --background: 220 20% 98%;
+    --surface: 0 0% 100%;
+    --surface-alt: 220 33% 96%;
+    --border: 220 22% 91%;
+    --border-strong: 216 15% 83%;
+
+    --foreground: 222 32% 15%;
+    --muted: 220 22% 95%;
+    --muted-foreground: 220 12% 42%;
+
+    --primary: var(--navy);
+    --primary-foreground: 0 0% 100%;
+    --ring: var(--teal);
+
+    /* Status — mesmos significados das cores de linha do legado,
+       reajustados para contraste AA sobre fundo claro */
+    --status-quote: 43 74% 44%;        /* era amarelo */
+    --status-provisional: 310 53% 46%; /* era rosa    */
+    --status-final: 158 46% 34%;       /* era branco  */
+
+    --success: 142 54% 40%;
+    --warning: 35 80% 57%;
+    --danger: 0 65% 55%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'tnum';
+  }
+
+  /* Números tabulares em tabelas de valores — alinha as casas decimais */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .field-label {
+    @apply mb-1.5 block text-[13px] font-medium text-foreground;
+  }
+
+  .field-error {
+    @apply mt-1.5 flex items-start gap-1.5 text-[13px] text-danger;
+  }
+
+  /* Conteúdo do editor de mensagens (composição e leitura na timeline) —
+     o Preflight do Tailwind zera estilos de lista/ênfase, então reaplicamos
+     o mínimo necessário para o corpo do e-mail ficar legível. */
+  .rich-text-content p {
+    @apply mb-2 last:mb-0;
+  }
+  .rich-text-content ul {
+    @apply mb-2 list-disc pl-5;
+  }
+  .rich-text-content ol {
+    @apply mb-2 list-decimal pl-5;
+  }
+  .rich-text-content strong {
+    @apply font-semibold;
+  }
+  .rich-text-content em {
+    @apply italic;
+  }
+  .rich-text-content a {
+    @apply text-teal underline;
+  }
+  .rich-text-content p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    @apply pointer-events-none float-left h-0 text-muted-foreground/70;
+  }
+}

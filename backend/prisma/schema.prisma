@@ -1,0 +1,1236 @@
+// Schema do módulo `auth`.
+// Os demais módulos (catalog, partners, policies, quotes, endorsements, documents,
+// finance, fx, reports) entram em arquivos/migrações próprias — ver docs/07-modulos.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identidade
+// ---------------------------------------------------------------------------
+
+/// Tipo de usuário. O legado misturava operadores internos (identificados por nome)
+/// e clientes externos (identificados por CNPJ) no mesmo cadastro, sem distinção.
+enum UserType {
+  INTERNAL
+  CLIENT
+  PARTNER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  /// Convidado, ainda sem senha definida (primeiro acesso pendente).
+  INVITED
+}
+
+model User {
+  id       String     @id @default(uuid())
+  name     String
+  email    String     @unique
+  /// CNPJ/CPF — no legado era o próprio login. Mantido para migrar os usuários atuais
+  /// e para identificar clientes e parceiros.
+  document String?    @unique
+  password String?
+  type     UserType   @default(INTERNAL)
+  status   UserStatus @default(INVITED)
+
+  phone      String?
+  jobTitle   String?
+  department String?
+
+  /// Escopo de dados para usuários externos: quando preenchido, o usuário só enxerga
+  /// os processos do cliente/parceiro correspondente.
+  clientId  String?
+  partnerId String?
+
+  lastLoginAt    DateTime?
+  /// Tentativas de login malsucedidas consecutivas; zera a cada login bem-sucedido.
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+
+  roles          UserRole[]
+  refreshTokens  RefreshToken[]
+  passwordResets PasswordReset[]
+  auditLogs      AuditLog[]
+  sentMessages   Message[]
+  gmailAccount   GmailAccount?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deactivatedAt DateTime?
+
+  @@index([type, status])
+  @@index([clientId])
+  @@index([partnerId])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// RBAC
+// ---------------------------------------------------------------------------
+
+model Role {
+  id          String  @id @default(uuid())
+  /// Identificador estável usado em código (ex.: "admin", "insurance_operator").
+  slug        String  @unique
+  name        String
+  description String?
+  /// Papéis de sistema não podem ser excluídos nem renomeados.
+  system      Boolean @default(false)
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("roles")
+}
+
+/// Permissão no formato `resource:action` (ex.: "quote:approve", "user:update").
+model Permission {
+  id          String  @id @default(uuid())
+  slug        String  @unique
+  resource    String
+  action      String
+  description String?
+  /// Agrupador para a UI — normalmente o módulo (ver docs/07-modulos.md).
+  module      String
+
+  roles RolePermission[]
+
+  @@unique([resource, action])
+  @@index([module])
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ---------------------------------------------------------------------------
+// Sessão e senha
+// ---------------------------------------------------------------------------
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Guardamos apenas o hash do token.
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ip        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+enum PasswordResetType {
+  /// Fluxo "esqueci minha senha", iniciado pelo próprio usuário.
+  RECOVERY
+  /// Convite de primeiro acesso, enviado por um administrador.
+  FIRST_ACCESS
+}
+
+model PasswordReset {
+  id        String            @id @default(uuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String            @unique
+  type      PasswordResetType @default(RECOVERY)
+  expiresAt DateTime
+  usedAt    DateTime?
+  ip        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("password_resets")
+}
+
+// ---------------------------------------------------------------------------
+// Auditoria
+// ---------------------------------------------------------------------------
+
+/// Trilha de auditoria — inexistente no legado, que não registrava quem alterou
+/// prêmio, taxa ou comissão.
+model AuditLog {
+  id     String  @id @default(uuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action   String
+  entity   String
+  entityId String?
+  /// Estado antes e depois, para os campos que mudaram.
+  before   Json?
+  after    Json?
+
+  ip        String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ===========================================================================
+// MÓDULO catalog — tabelas de domínio
+// ===========================================================================
+
+enum Modal {
+  AIR
+  SEA
+  ROAD
+  RAIL
+}
+
+model Country {
+  id     String  @id @default(uuid())
+  name   String
+  /// ISO 3166-1 alfa-2 (BR, US, CN). O legado não tinha código algum.
+  iso2   String? @unique
+  iso3   String? @unique
+  active Boolean @default(true)
+
+  states       State[]
+  ports        Port[]
+  originQuotes Quote[] @relation("QuoteOriginCountry")
+  destQuotes   Quote[] @relation("QuoteDestinationCountry")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@map("countries")
+}
+
+model State {
+  id        String  @id @default(uuid())
+  name      String
+  /// UF para o Brasil; sigla local para os demais.
+  code      String?
+  countryId String
+  country   Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  active    Boolean @default(true)
+
+  cities City[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([countryId, name])
+  @@index([countryId])
+  @@map("states")
+}
+
+model City {
+  id      String  @id @default(uuid())
+  name    String
+  stateId String
+  state   State   @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  active  Boolean @default(true)
+
+  ports Port[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([stateId, name])
+  @@index([stateId])
+  @@map("cities")
+}
+
+/// Porto, aeroporto ou ponto de fronteira.
+model Port {
+  id        String  @id @default(uuid())
+  name      String
+  /// UN/LOCODE (marítimo/terrestre) ou IATA (aéreo). Ausente no legado.
+  code      String?
+  modal     Modal
+  countryId String
+  country   Country @relation(fields: [countryId], references: [id], onDelete: Restrict)
+  cityId    String?
+  city      City?   @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  active    Boolean @default(true)
+
+  originQuotes Quote[] @relation("QuoteOriginPort")
+  destQuotes   Quote[] @relation("QuoteDestinationPort")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([countryId, modal])
+  @@index([name])
+  @@map("ports")
+}
+
+model Currency {
+  id     String  @id @default(uuid())
+  /// ISO 4217 (USD, EUR, BRL).
+  code   String  @unique
+  name   String
+  symbol String?
+  active Boolean @default(true)
+
+  exchangeRates ExchangeRate[]
+  quotes        Quote[]
+  endorsements  Endorsement[]
+  cashRequests  CashRequest[]
+  commissions   Commission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("currencies")
+}
+
+model Packaging {
+  id     String  @id @default(uuid())
+  name   String  @unique
+  active Boolean @default(true)
+
+  quotes Quote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("packagings")
+}
+
+model Vessel {
+  id        String  @id @default(uuid())
+  name      String
+  /// IMO number, quando conhecido.
+  imo       String?
+  /// Ano de construção — usado no adicional por idade da embarcação.
+  buildYear Int?
+  active    Boolean @default(true)
+
+  endorsements Endorsement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@map("vessels")
+}
+
+/// Tipo de mercadoria (a "meremb" do legado), com taxa e franquia por modal.
+model CommodityType {
+  id          String  @id @default(uuid())
+  code        String  @unique
+  name        String
+  /// Taxas sugeridas por modal, em % (5 casas decimais).
+  seaRoadRate Decimal @default(0) @db.Decimal(12, 5)
+  airRate     Decimal @default(0) @db.Decimal(12, 5)
+  /// Franquia em % sobre a importância segurada.
+  deductible  Decimal @default(0) @db.Decimal(12, 5)
+  active      Boolean @default(true)
+
+  quotes      Quote[]
+  clientRates ClientRate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@map("commodity_types")
+}
+
+// ===========================================================================
+// MÓDULO partners — pessoas jurídicas e funcionários
+// ===========================================================================
+
+/// Papel que uma empresa exerce. Uma mesma empresa pode ter vários — no legado
+/// a Fidcargo aparecia duplicada como parceiro E como seguradora.
+enum CompanyRoleType {
+  CLIENT
+  PARTNER
+  INSURER
+  CARRIER
+  SURVEYOR
+}
+
+model Company {
+  id        String  @id @default(uuid())
+  legalName String
+  tradeName String?
+  /// CNPJ ou CPF, apenas dígitos.
+  document  String? @unique
+  stateReg  String?
+
+  email  String?
+  phone  String?
+  mobile String?
+
+  zipCode     String?
+  address     String?
+  number      String?
+  district    String?
+  cityName    String?
+  stateName   String?
+  countryName String?
+
+  notes  String?
+  active Boolean @default(true)
+
+  roles CompanyRole[]
+
+  clientQuotes  Quote[]            @relation("QuoteClient")
+  partnerQuotes Quote[]            @relation("QuotePartner")
+  insurerQuotes Quote[]            @relation("QuoteInsurer")
+  policies      Policy[]
+  commissions   Commission[]       @relation("CommissionCompany")
+  clientRates   ClientRate[]       @relation("ClientRates")
+  batches       EndorsementBatch[] @relation("BatchInsurer")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([legalName])
+  @@index([document])
+  @@map("companies")
+}
+
+model CompanyRole {
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role      CompanyRoleType
+
+  createdAt DateTime @default(now())
+
+  @@id([companyId, role])
+  @@index([role])
+  @@map("company_roles")
+}
+
+/// Funcionário da corretora. Pode ou não ter acesso ao sistema (`userId`).
+model Employee {
+  id            String  @id @default(uuid())
+  name          String
+  email         String?
+  department    String?
+  jobTitle      String?
+  /// Aparece no select de "Vendedor" das cotações.
+  isSalesperson Boolean @default(false)
+  active        Boolean @default(true)
+
+  /// Vínculo opcional com a conta de acesso — no legado eram cadastros soltos.
+  userId String? @unique
+
+  quotes      Quote[]
+  commissions Commission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@map("employees")
+}
+
+// ===========================================================================
+// MÓDULO policies — apólices, coberturas e tarifação
+// ===========================================================================
+
+enum QuoteKind {
+  IMPORT
+  EXPORT
+}
+
+model Policy {
+  id          String    @id @default(uuid())
+  number      String
+  description String?
+  kind        QuoteKind
+  insurerId   String
+  insurer     Company   @relation(fields: [insurerId], references: [id], onDelete: Restrict)
+
+  /// Limite máximo de importância segurada da apólice.
+  insuredLimit Decimal @default(0) @db.Decimal(18, 2)
+  brokerCode   String?
+
+  /// Taxas e piso que o legado escondia no texto da descrição
+  /// (ex.: "AKAD - 0.10% - PROBEXA") ou não expunha em tela nenhuma.
+  baseRateClient           Decimal @default(0) @db.Decimal(12, 5)
+  baseRateInsurer          Decimal @default(0) @db.Decimal(12, 5)
+  minimumPremium           Decimal @default(0) @db.Decimal(18, 2)
+  minimumPremiumCurrencyId String?
+
+  validFrom DateTime?
+  validTo   DateTime?
+  active    Boolean   @default(true)
+
+  coverages   PolicyCoverage[]
+  quotes      Quote[]
+  clientRates ClientRate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([number, insurerId])
+  @@index([kind, active])
+  @@map("policies")
+}
+
+/// Cláusula de cobertura (ICC A/B/C) e acessórias.
+model Coverage {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  /// Cobertura principal (ICC) x acessória (guerra e greve, prêmio mínimo…).
+  accessory   Boolean @default(false)
+  active      Boolean @default(true)
+
+  seaRateInsurer Decimal @default(0) @db.Decimal(12, 5)
+  seaRateClient  Decimal @default(0) @db.Decimal(12, 5)
+  airRateInsurer Decimal @default(0) @db.Decimal(12, 5)
+  airRateClient  Decimal @default(0) @db.Decimal(12, 5)
+
+  policies    PolicyCoverage[]
+  quotes      Quote[]
+  clientRates ClientRate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("coverages")
+}
+
+model PolicyCoverage {
+  policyId   String
+  coverageId String
+  policy     Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  coverage   Coverage @relation(fields: [coverageId], references: [id], onDelete: Cascade)
+
+  /// Sobrescreve a taxa da cobertura para esta apólice específica.
+  rateClient  Decimal? @db.Decimal(12, 5)
+  rateInsurer Decimal? @db.Decimal(12, 5)
+
+  @@id([policyId, coverageId])
+  @@map("policy_coverages")
+}
+
+// ===========================================================================
+// MÓDULO fx — câmbio
+// ===========================================================================
+
+/// Cotação diária. No legado era digitada à mão, card a card, e só o dólar
+/// era alimentado — ver docs/10-dores-e-melhorias.md (item 3).
+model ExchangeRate {
+  id         String   @id @default(uuid())
+  date       DateTime @db.Date
+  currencyId String
+  currency   Currency @relation(fields: [currencyId], references: [id], onDelete: Cascade)
+  /// Valor fiscal usado na conversão para BRL.
+  rate       Decimal  @db.Decimal(18, 6)
+  /// PTAX importada automaticamente x lançamento manual.
+  source     String   @default("MANUAL")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, currencyId])
+  @@index([currencyId, date])
+  @@map("exchange_rates")
+}
+
+// ===========================================================================
+// MÓDULO quotes — cotações (núcleo)
+// ===========================================================================
+
+enum QuoteStatus {
+  QUOTE
+  PROVISIONAL
+  FINAL
+}
+
+/// Posição dentro do estágio — espelha a coluna "Posição" do legado.
+enum QuotePosition {
+  OPEN_PROPOSAL
+  APPROVED
+  REJECTED
+  PENDING
+  FOLLOW_UP
+  CANCELED
+}
+
+enum Incoterm {
+  EXW
+  FCA
+  FAS
+  FOB
+  CFR
+  CIF
+  CPT
+  CIP
+  DAP
+  DAT
+  DDU
+  DDP
+  CI
+}
+
+enum CargoCondition {
+  NEW
+  USED
+}
+
+/// Modo de entrada da grade: por taxa (%) ou por valor absoluto.
+enum BudgetMode {
+  RATES
+  VALUES
+}
+
+enum BillingVia {
+  BROKER
+  PARTNER
+}
+
+enum DeclaredValue {
+  DECLARED
+  AIR_NO_DECLARED_INCLUDED
+  NOT_DECLARED
+  NA
+}
+
+/// Verbas que compõem a importância segurada.
+enum RateLineItem {
+  COST
+  FREIGHT
+  EXPENSES
+  EXPECTED_PROFIT
+  TAXES
+  CIF_VALUE
+}
+
+model Quote {
+  id       String        @id @default(uuid())
+  /// Número sequencial do processo, visível ao usuário.
+  number   Int           @unique @default(autoincrement())
+  kind     QuoteKind
+  status   QuoteStatus   @default(QUOTE)
+  position QuotePosition @default(OPEN_PROPOSAL)
+
+  issueDate        DateTime  @default(now())
+  pendingLimitDate DateTime?
+
+  policyId  String?
+  policy    Policy?  @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  insurerId String?
+  insurer   Company? @relation("QuoteInsurer", fields: [insurerId], references: [id], onDelete: Restrict)
+  clientId  String
+  client    Company  @relation("QuoteClient", fields: [clientId], references: [id], onDelete: Restrict)
+  partnerId String?
+  partner   Company? @relation("QuotePartner", fields: [partnerId], references: [id], onDelete: Restrict)
+
+  /// "Provisória única" — só existe na importação.
+  singleProvisional Boolean @default(false)
+
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+
+  // --- Origem -------------------------------------------------------------
+  modal             Modal
+  originCountryId   String?
+  originCountry     Country?  @relation("QuoteOriginCountry", fields: [originCountryId], references: [id], onDelete: Restrict)
+  originStateName   String?
+  originCityName    String?
+  originPortId      String?
+  originPort        Port?     @relation("QuoteOriginPort", fields: [originPortId], references: [id], onDelete: Restrict)
+  /// Previsão de saída — só na exportação.
+  departureForecast DateTime?
+
+  // --- Destino ------------------------------------------------------------
+  destinationCountryId String?
+  destinationCountry   Country? @relation("QuoteDestinationCountry", fields: [destinationCountryId], references: [id], onDelete: Restrict)
+  destinationStateName String?
+  destinationCityName  String?
+  destinationPortId    String?
+  destinationPort      Port?    @relation("QuoteDestinationPort", fields: [destinationPortId], references: [id], onDelete: Restrict)
+
+  // --- Produto ------------------------------------------------------------
+  commodityDescription String?
+  notes                String?
+  internalNotes        String?
+  cargoCondition       CargoCondition @default(NEW)
+  ncm                  String?
+  brand                String?
+  weightKg             Decimal        @default(0) @db.Decimal(14, 3)
+  invoiceNumber        String?
+  commodityTypeId      String?
+  commodityType        CommodityType? @relation(fields: [commodityTypeId], references: [id], onDelete: Restrict)
+  coverageId           String?
+  coverage             Coverage?      @relation(fields: [coverageId], references: [id], onDelete: Restrict)
+  packagingId          String?
+  packaging            Packaging?     @relation(fields: [packagingId], references: [id], onDelete: Restrict)
+
+  // --- Financeiro ---------------------------------------------------------
+  incoterm      Incoterm      @default(CFR)
+  currencyId    String
+  currency      Currency      @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  overPercent   Decimal       @default(0) @db.Decimal(12, 5)
+  reference     String?
+  billingVia    BillingVia    @default(BROKER)
+  budgetMode    BudgetMode    @default(RATES)
+  declaredValue DeclaredValue @default(DECLARED)
+
+  /// Importação
+  clientDiscount  Decimal @default(0) @db.Decimal(12, 5)
+  insurerDiscount Decimal @default(0) @db.Decimal(12, 5)
+  expensePercent  Decimal @default(10) @db.Decimal(12, 5)
+  profitPercent   Decimal @default(10) @db.Decimal(12, 5)
+
+  /// Exportação
+  standardDiscount        Decimal @default(0) @db.Decimal(12, 5)
+  letterAdditionalPercent Decimal @default(10) @db.Decimal(12, 5)
+  vesselAdditionalPercent Decimal @default(0) @db.Decimal(12, 5)
+  irbValue                Decimal @default(0) @db.Decimal(18, 2)
+  irbCurrencyId           String?
+
+  // --- Comissões ----------------------------------------------------------
+  salespersonId      String?
+  salesperson        Employee? @relation(fields: [salespersonId], references: [id], onDelete: SetNull)
+  partnerPercent     Decimal   @default(30) @db.Decimal(12, 5)
+  brokerPercent      Decimal   @default(0) @db.Decimal(12, 5)
+  salespersonPercent Decimal   @default(0) @db.Decimal(12, 5)
+
+  // --- Coberturas acessórias ----------------------------------------------
+  warStrike             Boolean @default(false)
+  machineryStoppage     Boolean @default(false)
+  expensesCovered       Boolean @default(false)
+  expectedProfitCovered Boolean @default(false)
+  minimumPremiumApplied Boolean @default(false)
+  transshipment         Boolean @default(false)
+  creditLetter          Boolean @default(false)
+
+  // --- Impostos (compõem a base da I.S. na importação) --------------------
+  taxImportDuty Boolean @default(false)
+  taxIpi        Boolean @default(false)
+  taxIcms       Boolean @default(false)
+  taxPis        Boolean @default(false)
+  taxCofins     Boolean @default(false)
+
+  // --- Resultado do cálculo ----------------------------------------------
+  insuredAmount     Decimal   @default(0) @db.Decimal(18, 2)
+  premiumClient     Decimal   @default(0) @db.Decimal(18, 2)
+  premiumInsurer    Decimal   @default(0) @db.Decimal(18, 2)
+  /// Câmbio usado na conversão para BRL no momento do cálculo.
+  exchangeRate      Decimal   @default(0) @db.Decimal(18, 6)
+  insuredAmountBrl  Decimal   @default(0) @db.Decimal(18, 2)
+  premiumClientBrl  Decimal   @default(0) @db.Decimal(18, 2)
+  premiumInsurerBrl Decimal   @default(0) @db.Decimal(18, 2)
+  calculatedAt      DateTime?
+
+  rateLines          QuoteRateLine[]
+  endorsements       Endorsement[]
+  externalReferences ExternalReference[]
+  messages           Message[]
+  attachments        Attachment[]
+
+  createdById String?
+  updatedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, position])
+  @@index([kind, issueDate])
+  @@index([clientId])
+  @@index([partnerId])
+  @@map("quotes")
+}
+
+/// Uma linha da grade de taxas (ver docs/04-regras-calculo.md).
+model QuoteRateLine {
+  id      String       @id @default(uuid())
+  quoteId String
+  quote   Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  item    RateLineItem
+
+  /// Valor da verba na moeda do processo.
+  amount Decimal @default(0) @db.Decimal(18, 2)
+
+  baseRateClient  Decimal @default(0) @db.Decimal(12, 5)
+  extraRateClient Decimal @default(0) @db.Decimal(12, 5)
+  warRateClient   Decimal @default(0) @db.Decimal(12, 5)
+  premiumClient   Decimal @default(0) @db.Decimal(18, 2)
+
+  baseRateInsurer  Decimal @default(0) @db.Decimal(12, 5)
+  extraRateInsurer Decimal @default(0) @db.Decimal(12, 5)
+  warRateInsurer   Decimal @default(0) @db.Decimal(12, 5)
+  premiumInsurer   Decimal @default(0) @db.Decimal(18, 2)
+
+  @@unique([quoteId, item])
+  @@map("quote_rate_lines")
+}
+
+// ===========================================================================
+// MÓDULO endorsements — averbações
+// ===========================================================================
+
+enum EndorsementType {
+  PROVISIONAL
+  FINAL
+}
+
+enum EndorsementPosition {
+  /// Emitida, aguardando regularização (o "Pendente" do legado).
+  PENDING
+  /// Em acompanhamento (o "Follow-up" do legado).
+  FOLLOW_UP
+  /// Saldo totalmente consumido / processo encerrado.
+  SETTLED
+  CANCELED
+}
+
+model Endorsement {
+  id       String              @id @default(uuid())
+  /// Sequencial por tipo; o número exibido leva prefixo (P-, D-, E-).
+  sequence Int                 @default(autoincrement())
+  number   String              @unique
+  type     EndorsementType
+  position EndorsementPosition @default(PENDING)
+
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+
+  /// Definitiva emitida contra o saldo de uma provisória.
+  parentId String?
+  parent   Endorsement?  @relation("ProvisionalChildren", fields: [parentId], references: [id], onDelete: Restrict)
+  children Endorsement[] @relation("ProvisionalChildren")
+
+  issuedAt     DateTime  @default(now())
+  /// Data de atracação — "só pode averbar quando a carga está atracada"
+  /// (ver docs/12-reuniao-cliente.md).
+  berthingDate DateTime?
+
+  /// Dados exigidos no arquivo mensal enviado à seguradora.
+  blNumber        String?
+  containerNumber String?
+  vesselId        String?
+  vessel          Vessel? @relation(fields: [vesselId], references: [id], onDelete: SetNull)
+
+  currencyId String
+  currency   Currency @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+
+  insuredAmount  Decimal @db.Decimal(18, 2)
+  premiumClient  Decimal @db.Decimal(18, 2)
+  premiumInsurer Decimal @db.Decimal(18, 2)
+
+  exchangeRate     Decimal @default(0) @db.Decimal(18, 6)
+  insuredAmountBrl Decimal @default(0) @db.Decimal(18, 2)
+  premiumClientBrl Decimal @default(0) @db.Decimal(18, 2)
+
+  /// Saldo remanescente da provisória, na moeda do processo.
+  balance        Decimal @default(0) @db.Decimal(18, 2)
+  /// Percentual do saldo ainda disponível (100 = intacta).
+  balancePercent Decimal @default(100) @db.Decimal(9, 2)
+
+  notes String?
+
+  positionHistory EndorsementPositionLog[]
+  cashRequests    CashRequest[]
+  commissions     Commission[]
+  batchItems      EndorsementBatchItem[]
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([type, position])
+  @@index([quoteId])
+  @@index([issuedAt])
+  @@map("endorsements")
+}
+
+/// Histórico de mudança de posição — o legado trocava a posição sem deixar rastro.
+model EndorsementPositionLog {
+  id            String               @id @default(uuid())
+  endorsementId String
+  endorsement   Endorsement          @relation(fields: [endorsementId], references: [id], onDelete: Cascade)
+  from          EndorsementPosition?
+  to            EndorsementPosition
+  reason        String?
+  userId        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([endorsementId])
+  @@map("endorsement_position_logs")
+}
+
+// ===========================================================================
+// MÓDULO finance — numerário e comissões
+// ===========================================================================
+
+enum CashRequestStatus {
+  /// "Falta enviar Numerário" no legado.
+  PENDING_SEND
+  /// "Numerário enviado".
+  SENT
+  /// "Recebido".
+  RECEIVED
+  CANCELED
+}
+
+model CashRequest {
+  id       String @id @default(uuid())
+  sequence Int    @default(autoincrement())
+  /// Cada reenvio gera uma versão nova, como a coluna "Versão" do legado.
+  version  Int    @default(1)
+
+  endorsementId String
+  endorsement   Endorsement @relation(fields: [endorsementId], references: [id], onDelete: Restrict)
+
+  status CashRequestStatus @default(PENDING_SEND)
+
+  currencyId String
+  currency   Currency @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+
+  /// Prêmio devido à seguradora, antes do agravo.
+  premiumInsurer   Decimal @db.Decimal(18, 2)
+  /// Agravo sobre o valor a pagar — 20 % ou 25 %, a confirmar (tarefa 1).
+  surchargePercent Decimal @default(0) @db.Decimal(12, 5)
+  surchargeAmount  Decimal @default(0) @db.Decimal(18, 2)
+  /// Total a pagar: prêmio + agravo.
+  amount           Decimal @db.Decimal(18, 2)
+
+  exchangeRate Decimal @default(0) @db.Decimal(18, 6)
+  amountBrl    Decimal @default(0) @db.Decimal(18, 2)
+
+  chargeDate        DateTime?
+  sentAt            DateTime?
+  paymentDate       DateTime?
+  receivedAmountBrl Decimal?  @db.Decimal(18, 2)
+
+  notes String?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([endorsementId])
+  @@map("cash_requests")
+}
+
+enum CommissionBeneficiary {
+  PARTNER
+  BROKER
+  SALESPERSON
+}
+
+enum CommissionStatus {
+  PENDING
+  /// Nota fiscal solicitada ao favorecido.
+  INVOICE_REQUESTED
+  PAID
+  CANCELED
+}
+
+/// "Intermediação de Negócios" no vocabulário do legado.
+model Commission {
+  id       String @id @default(uuid())
+  sequence Int    @default(autoincrement())
+
+  endorsementId String
+  endorsement   Endorsement @relation(fields: [endorsementId], references: [id], onDelete: Restrict)
+
+  beneficiary CommissionBeneficiary
+  /// Favorecido: parceiro (empresa) ou vendedor (funcionário).
+  companyId   String?
+  company     Company?              @relation("CommissionCompany", fields: [companyId], references: [id], onDelete: Restrict)
+  employeeId  String?
+  employee    Employee?             @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  status CommissionStatus @default(PENDING)
+
+  currencyId String
+  currency   Currency @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+
+  /// Prêmio que serviu de base para o rateio.
+  premiumBase Decimal @db.Decimal(18, 2)
+  percent     Decimal @db.Decimal(12, 5)
+  amount      Decimal @db.Decimal(18, 2)
+
+  exchangeRate Decimal @default(0) @db.Decimal(18, 6)
+  amountBrl    Decimal @default(0) @db.Decimal(18, 2)
+
+  invoiceNumber      String?
+  invoiceRequestedAt DateTime?
+  paymentDate        DateTime?
+
+  notes String?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, beneficiary])
+  @@index([endorsementId])
+  @@index([companyId])
+  @@map("commissions")
+}
+
+// ===========================================================================
+// Tarifação por cliente (tarefa 27)
+// ===========================================================================
+
+/// Taxa negociada com um cliente específico: "cada cliente tem uma taxa".
+/// O escopo é opcional e cumulativo — quanto mais campos preenchidos, mais
+/// específica a regra. A de maior especificidade vence (ver rate-resolver.ts).
+model ClientRate {
+  id       String  @id @default(uuid())
+  clientId String
+  client   Company @relation("ClientRates", fields: [clientId], references: [id], onDelete: Cascade)
+
+  /// Escopos opcionais. `null` significa "vale para qualquer valor".
+  policyId        String?
+  policy          Policy?        @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  coverageId      String?
+  coverage        Coverage?      @relation(fields: [coverageId], references: [id], onDelete: Cascade)
+  commodityTypeId String?
+  commodityType   CommodityType? @relation(fields: [commodityTypeId], references: [id], onDelete: Cascade)
+  modal           Modal?
+  kind            QuoteKind?
+
+  /// Taxas dos dois lados, em %.
+  rateClient     Decimal  @default(0) @db.Decimal(12, 5)
+  rateInsurer    Decimal  @default(0) @db.Decimal(12, 5)
+  /// Piso de prêmio específico do cliente, quando houver.
+  minimumPremium Decimal? @db.Decimal(18, 2)
+
+  validFrom DateTime?
+  validTo   DateTime?
+  active    Boolean   @default(true)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId, active])
+  @@map("client_rates")
+}
+
+// ===========================================================================
+// Referências externas (tarefa 30)
+// ===========================================================================
+
+/// "Todos usam referências diferentes, às vezes pro mesmo processo."
+/// Um processo carrega quantas referências forem necessárias — a da Pinho,
+/// a do SIGRA, a do cliente, a do parceiro.
+model ExternalReference {
+  id      String @id @default(uuid())
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  /// Origem da referência: PINHO, SIGRA, CLIENT, PARTNER, INSURER, OTHER.
+  source String
+  /// Rótulo livre, quando `source` é OTHER ou precisa de detalhe.
+  label  String?
+  value  String
+
+  createdAt DateTime @default(now())
+
+  @@unique([quoteId, source, value])
+  @@index([value])
+  @@map("external_references")
+}
+
+// ===========================================================================
+// Lote mensal de averbações (tarefa 28)
+// ===========================================================================
+
+enum BatchStatus {
+  OPEN
+  CLOSED
+  SENT
+}
+
+/// Fechamento mensal enviado à seguradora com todas as averbações do período.
+model EndorsementBatch {
+  id       String @id @default(uuid())
+  sequence Int    @default(autoincrement())
+  /// Competência no formato AAAA-MM.
+  period   String
+
+  insurerId String
+  insurer   Company @relation("BatchInsurer", fields: [insurerId], references: [id], onDelete: Restrict)
+
+  status BatchStatus @default(OPEN)
+
+  /// Totais congelados no fechamento, para conferência posterior.
+  itemCount           Int     @default(0)
+  totalInsuredAmount  Decimal @default(0) @db.Decimal(18, 2)
+  totalPremiumClient  Decimal @default(0) @db.Decimal(18, 2)
+  totalPremiumInsurer Decimal @default(0) @db.Decimal(18, 2)
+
+  closedAt DateTime?
+  sentAt   DateTime?
+  notes    String?
+
+  items EndorsementBatchItem[]
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([period, insurerId])
+  @@index([status])
+  @@map("endorsement_batches")
+}
+
+model EndorsementBatchItem {
+  batchId       String
+  batch         EndorsementBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  endorsementId String
+  endorsement   Endorsement      @relation(fields: [endorsementId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@id([batchId, endorsementId])
+  @@map("endorsement_batch_items")
+}
+
+// ===========================================================================
+// Configuração do sistema (tarefas 32 e 35)
+// ===========================================================================
+
+/// Parâmetros ajustáveis sem deploy: percentual de acréscimo do extrato,
+/// prazos de TFA e liberação. Ver docs/12-reuniao-cliente.md.
+model SystemSetting {
+  key         String  @id
+  value       String
+  description String?
+
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// ===========================================================================
+// Comunicação por processo (tarefa 31, docs/12-reuniao-cliente.md § 5)
+// ===========================================================================
+
+/// Um anexo pertence ao processo, não a uma mensagem específica — pode ser
+/// enviado em mais de uma mensagem (ver `MessageAttachment`).
+model Attachment {
+  id      String @id @default(uuid())
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  /// Caminho relativo dentro do diretório de storage local.
+  storageKey String
+
+  uploadedById String?
+
+  createdAt DateTime @default(now())
+
+  messages MessageAttachment[]
+
+  @@index([quoteId])
+  @@map("attachments")
+}
+
+enum MessageStatus {
+  SENT
+  FAILED
+}
+
+/// Uma mensagem enviada por e-mail a partir de um processo. Substitui a caixa
+/// de entrada como sistema de registro — ver docs/12-reuniao-cliente.md § 5.
+model Message {
+  id      String @id @default(uuid())
+  quoteId String
+  quote   Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  subject  String
+  bodyHtml String
+  bodyText String
+
+  toAddresses String[]
+  ccAddresses String[]
+
+  status       MessageStatus @default(SENT)
+  errorMessage String?
+
+  /// ID da mensagem no Gmail, para referência — não usado para nada além de auditoria.
+  gmailMessageId String?
+
+  sentById String?
+  sentBy   User?    @relation(fields: [sentById], references: [id], onDelete: SetNull)
+  sentAt   DateTime @default(now())
+
+  attachments MessageAttachment[]
+
+  @@index([quoteId, sentAt])
+  @@map("messages")
+}
+
+model MessageAttachment {
+  messageId    String
+  message      Message    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  attachmentId String
+  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, attachmentId])
+  @@map("message_attachments")
+}
+
+/// Conexão OAuth do Gmail de um usuário — cada operador envia e-mails a partir
+/// da própria conta, como no legado (e-mails saíam da caixa pessoal).
+model GmailAccount {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  gmailEmail   String
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("gmail_accounts")
+}
