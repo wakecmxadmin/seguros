@@ -1,0 +1,9 @@
+node_modules
+dist
+storage
+certs
+.env
+.env.local
+.env.prod
+*.log
+coverage

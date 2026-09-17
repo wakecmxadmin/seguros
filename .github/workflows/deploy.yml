@@ -1,0 +1,77 @@
+name: Deploy Seguros
+
+# Roda apenas em push na main e sob demanda. Nunca em pull_request: o runner
+# e self-hosted na VM da Wake, entao PR de terceiro nao executa nada.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-seguros
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, seguros]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build do frontend
+        working-directory: frontend
+        env:
+          VITE_API_URL: /api
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publicar frontend no nginx
+        run: |
+          sudo mkdir -p /var/www/seguros
+          sudo rm -rf /var/www/seguros/*
+          sudo cp -r frontend/dist/. /var/www/seguros/
+          sudo chown -R nginx:nginx /var/www/seguros
+          sudo restorecon -R /var/www/seguros
+
+      - name: Build da imagem do backend
+        run: docker build -t seguros-backend:latest ./backend
+
+      - name: Rodar migrations
+        # Com a mesma imagem, antes de trocar o container em producao — se a
+        # migration falhar, o deploy para aqui e o container antigo continua no ar.
+        run: |
+          docker run --rm \
+            --env-file /home/opc/seguros/backend/.env \
+            -v /home/opc/seguros/backend/certs:/app/certs:ro \
+            seguros-backend:latest npx prisma migrate deploy
+
+      - name: Subir o container
+        run: |
+          docker rm -f seguros-backend 2>/dev/null || true
+          docker run -d --name seguros-backend \
+            --restart unless-stopped \
+            --env-file /home/opc/seguros/backend/.env \
+            -v /home/opc/seguros/backend/certs:/app/certs:ro \
+            -p 127.0.0.1:3011:3010 \
+            seguros-backend:latest
+
+      - name: Healthcheck
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3011/api || true)
+            case "$code" in
+              200|401|404) echo "backend de pe (HTTP $code)"; exit 0 ;;
+            esac
+            sleep 2
+          done
+          echo "backend nao respondeu; ultimos logs:"
+          docker logs --tail 60 seguros-backend
+          exit 1
+
+      - name: Recarregar nginx
+        run: |
+          sudo nginx -t
+          sudo systemctl reload nginx
+
+      - name: Limpar imagens orfas
+        run: docker image prune -f

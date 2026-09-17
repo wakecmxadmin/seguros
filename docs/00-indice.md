@@ -18,6 +18,8 @@ Nenhum dado foi criado, alterado ou removido durante o mapeamento.
 | [10-dores-e-melhorias.md](10-dores-e-melhorias.md) | Problemas encontrados e oportunidades, por prioridade |
 | [11-dicionario-dados.md](11-dicionario-dados.md) | Campos reais do banco legado, extraídos do bundle |
 | [12-reuniao-cliente.md](12-reuniao-cliente.md) | Dores e regras de negócio levantadas na reunião |
+| [13-sigra-campos-necessarios.md](13-sigra-campos-necessarios.md) | Campos a puxar do SIGRA por documento (BL, Invoice, CE Mercante, TFA, câmbio), status do mapeamento |
+| [SIGRA_DB.md](SIGRA_DB.md) | Schema, tabelas e conexão do banco externo `sigraweb` (SIGRA) |
 
 ## Stack alvo (mesmo padrão dos demais projetos em `dev/wake`)
 - **Backend**: NestJS + Prisma + PostgreSQL + TypeScript

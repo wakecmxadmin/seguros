@@ -1,8 +1,8 @@
 # Tarefas
 
-`**************------` **68%**
+`*************-------` **67%**
 
-**Total:** 41  ·  **Pendentes:** 13  ·  **Feitas (aguardando fechamento):** 0  ·  **Concluídas:** 28
+**Total:** 45  ·  **Pendentes:** 15  ·  **Feitas (aguardando fechamento):** 2  ·  **Concluídas:** 28
 
 ---
 
@@ -28,10 +28,31 @@
 - [ ] **7.** Obter o **prêmio mínimo por apólice**. O cálculo o aplica (conferido: 20,41 → 30,00), mas
   o campo não aparece na tela de Apólices. Descobrir onde está configurado hoje.
 
+- [x] **46.** Aguardar o cliente enviar um documento listando as tabelas/colunas do SIGRA realmente
+  necessárias para o projeto de seguros. O schema `pinho` tem 410 tabelas com muitas colunas cada —
+  evitar clonar tudo, só trazer o que for confirmado como útil (processo, datas, valores, itens, etc.).
+  Bloqueia as tarefas 42 e 43. — a cliente (Lohana) respondeu do lado de negócio, não do lado técnico:
+  os **documentos padrão** exigidos em toda averbação são BL/AWB, Invoice, Packing List, CE Mercante,
+  CCT (aéreo) e TFA (Termo de Faltas e Avarias). Exemplos reais em `docs/examples/`, referentes ao
+  processo SIGRA **1901475** (PO 260098, Multi Mercantes). Isso não é uma lista de colunas do SIGRA,
+  mas define o que precisamos rastrear — próximo passo é a tarefa 47.
+
+- [ ] **49.** **Exceção de taxa de câmbio na fatura de cobrança.** Para o cliente Farm Direct Food
+  (processo SIGRA 1898813, averbação P1954/D106647) **não** se usa a taxa de abertura + 6% do dia —
+  usa-se a taxa cambial do próprio processo de importação (a do DI/DUIMP no SIGRA, no exemplo enviado:
+  `5,1253`). Falta confirmar com o cliente: essa exceção é **por cliente específico** ou vale para
+  **todo processo com impostos (DI)** — o outro exemplo (processo 1901475) foi descrito como "cliente
+  sem impostos" e não teve essa ressalva. Sem essa resposta não dá pra saber se é uma flag no cadastro
+  do parceiro (`partners`) ou uma regra automática por tipo de processo.
+
 ### Da reunião com o cliente → `docs/12-reuniao-cliente.md`
 
-- [ ] **29.** **Integração com o SIGRA** (agenciamento, importação e exportação). Puxar a documentação
-  que hoje chega por e-mail. Descobrir se há API, banco ou exportação de arquivo.
+- [x] **29.** **Integração com o SIGRA** (agenciamento, importação e exportação). Puxar a documentação
+  que hoje chega por e-mail. Descobrir se há API, banco ou exportação de arquivo. — confirmado: é um
+  banco de dados (`sigraweb`, PostgreSQL, ver `docs/SIGRA_DB.md`), exige TLS mútuo com os certificados
+  de `backend/certs/sigra/`. Acesso validado (senha corrigida, hostname verification contornado). Sem
+  API nem exportação de arquivo envolvidas — a integração será direto no banco. Próximo passo depende
+  da tarefa 46.
 
 ### Próximos passos
 
@@ -45,19 +66,39 @@
 - [ ] **41.** **Clonar o banco de dados de produção do projeto (`seguros`) para um ambiente local.**
   Permite testar mudanças de schema e rodar queries pesadas sem impactar produção.
 
-- [ ] **42.** **Clonar o banco do SIGRA (`sigraweb`) para um ambiente local.** Usar os certificados em
-  `backend/certs/sigra/` e as credenciais já configuradas no `.env` (ver `docs/SIGRA_DB.md`). Evita
-  consultas pesadas direto no banco de produção de terceiro.
+- [ ] **42.** **Clonar o banco do SIGRA (`sigraweb`) para um ambiente local.** Só clonar as tabelas
+  confirmadas como necessárias pela tarefa 47, não o banco inteiro (410 tabelas no schema `pinho`,
+  muitas colunas cada). Usar os certificados em `backend/certs/sigra/` e as credenciais já configuradas
+  no `.env` (ver `docs/SIGRA_DB.md`).
 
-- [ ] **43.** **Mapear o banco do SIGRA e identificar quais dados são úteis para este projeto**, a partir
-  da cópia local (tarefa 42). Levantar, dentro do schema `pinho`, quais tabelas/campos (processo,
-  datas, valores, itens) fazem sentido entrar no fluxo de cotação/apólice/sinistro. Complementa
-  `docs/SIGRA_DB.md` e a tarefa 29.
+- [ ] **43.** **Mapear o banco do SIGRA e identificar quais dados são úteis para este projeto.**
+  Depende da tarefa 47 — só depois de saber quais campos dos documentos padrão (BL, Invoice, Packing
+  List, CE Mercante, CCT, TFA) existem como coluna em `pinho.imp_processo` (ou tabela satélite) dá para
+  fechar esse mapeamento e complementar `docs/SIGRA_DB.md`.
+
+- [ ] **47.** **Confirmar no banco do SIGRA quais campos dos documentos padrão já são dados estruturados
+  e quais são só PDFs de terceiros.** Usar os processos **1901475** (sem impostos) e **1898813** (com
+  impostos, cliente Farm Direct Food) como casos reais (`SELECT * FROM pinho.imp_processo WHERE id IN
+  (1901475, 1898813)`) e checar se existe tabela de anexo/documento/conhecimento no schema `pinho`.
+  Incluir a **taxa cambial do processo** (a que aparece na tela de Valores — `Taxa USD: 5,12530` no
+  exemplo 1898813) na checagem, é o dado que a tarefa 49 precisa. Hipótese a validar: BL, Invoice,
+  Packing List, CE Mercante e TFA são emitidos por terceiros (armador, fornecedor, Receita/Marinha
+  Mercante, terminal) e **não estão no SIGRA como arquivo** — só as datas/valores equivalentes
+  (`dt_embarque`, `dt_presenca_carga`, `vl_frete`, taxa cambial, etc.). Se confirmado, os PDFs
+  continuam entrando pelo módulo `communications` (tarefa 31) e só os campos estruturados vêm do SIGRA.
+  Bloqueia as tarefas 43 e 49.
 
 - [ ] **44.** **Fazer a integração de dados com o SIGRA**, a partir do mapeamento da tarefa 43 — trazer
   os campos úteis (datas do processo, valores, itens) para dentro do sistema de seguros.
 
 - [ ] **45.** **Subir o projeto na VM e colocar para rodar em produção.**
+
+- [ ] **48.** **Adotar a fórmula confirmada da taxa de câmbio oficial da corretora no módulo `fx`**
+  (tarefa 20): **taxa de abertura (PTAX) + 6%**, para 5 moedas — Dólar, Euro, Franco Suíço, Iene e Libra
+  Esterlina — atualizada manualmente todo dia quando abre o câmbio. Resolve a dúvida da extinta tarefa
+  21 (diferença sistemática de ~+6% observada entre a PTAX pura e o legado). Hoje o módulo `fx` só
+  importa a PTAX pura da API do BCB — falta oferecer essa taxa com markup como a **taxa oficial**,
+  mantendo a PTAX pura como fonte auxiliar/comparação.
 
 ---
 
@@ -76,7 +117,7 @@
 - [x] **17.** Tela de **auditoria** (`audit:list`). — expõe `GET /audit` e `GET /audit/facets`; filtros por ação e por registro afetado, com rótulos em português para as 38 ações; cada entrada abre o diff antes/depois.
 - [x] **18.** Criar papel personalizado pela interface. — diálogo com as 48 permissões agrupadas por módulo e atalho "marcar todas" por grupo; exclusão disponível apenas para papéis não-sistema e sem usuários vinculados. Validado criando e excluindo o papel "Sinistro".
 - [x] **19.** Módulo `catalog`: países, estados, cidades, portos/aeroportos, moedas, embalagens, navios e tipos de mercadoria. Inclui a higienização dos dados sujos do legado. — CRUD genérico dirigido por metadados (uma implementação para as 8 tabelas). Seed com 66 países ISO, 27 UFs, 44 portos/aeroportos com UN-LOCODE e IATA, 12 moedas, 47 embalagens, 10 tipos de mercadoria. Sem as duplicatas e entradas-lixo do legado.
-- [x] **20.** Módulo `fx`: ingestão automática da PTAX do Banco Central, substituindo o lançamento manual diário da cotação. — importação validada contra a API real do BCB: 1.120 cotações de 10 moedas em um comando. Inclui lançamento manual (auditado) e fallback para o último dia útil quando não há cotação na data. **Ver tarefa 21 antes de adotar como fonte oficial.** — 16/09/2026: adicionado agendamento diário (`@nestjs/schedule`), roda às 14h (horário de Brasília) em dias úteis e reimporta os últimos 5 dias para se autocurar de feriados ou quedas do servidor; API do BCB é gratuita e não exige chave. Cada execução (manual ou automática) fica registrada na auditoria.
+- [x] **20.** Módulo `fx`: ingestão automática da PTAX do Banco Central, substituindo o lançamento manual diário da cotação. — importação validada contra a API real do BCB: 1.120 cotações de 10 moedas em um comando. Inclui lançamento manual (auditado) e fallback para o último dia útil quando não há cotação na data. **Ver tarefa 48** — a fórmula da taxa oficial da corretora (abertura + 6%) já foi confirmada. — 16/09/2026: adicionado agendamento diário (`@nestjs/schedule`), roda às 14h (horário de Brasília) em dias úteis e reimporta os últimos 5 dias para se autocurar de feriados ou quedas do servidor; API do BCB é gratuita e não exige chave. Cada execução (manual ou automática) fica registrada na auditoria.
 - [x] **23.** Módulo `partners`: empresas com **papéis múltiplos** (cliente, parceiro, seguradora, transportadora, vistoriador) em um cadastro só, e funcionários com vínculo opcional a usuário. Resolve a duplicação do legado, onde a Fidcargo existia duas vezes.
 - [x] **24.** Módulo `policies`: apólices e coberturas. Taxa base (cliente e seguradora) e prêmio mínimo viraram **campos estruturados** — no legado a taxa ficava no texto do nome da apólice ("AKAD - 0.10% - PROBEXA") e o prêmio mínimo não aparecia em tela nenhuma.
 - [x] **25.** Tela **Cadastros** centralizada: 12 cadastros sob um único item de menu, agrupados por contexto (Pessoas, Seguro, Câmbio, Localização, Carga, Financeiro). Substitui os 20 itens soltos na sidebar do legado, que usavam três padrões visuais diferentes.

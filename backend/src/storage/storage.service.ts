@@ -1,44 +1,62 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { extname, join, resolve } from 'node:path';
+import { extname } from 'node:path';
+import type { Readable } from 'node:stream';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 
 /**
- * Armazenamento local de anexos em disco, um diretório por processo.
- * Isolado atrás de uma interface simples para poder virar S3 depois sem
- * tocar em `communications` — ver tarefa 31.
+ * Armazenamento de anexos no S3, um prefixo por processo — ver tarefa 31.
  */
 @Injectable()
 export class StorageService {
-  private readonly baseDir: string;
+  private readonly client: S3Client;
+  private readonly bucket: string;
 
   constructor(private config: ConfigService) {
-    this.baseDir = resolve(this.config.get<string>('ATTACHMENTS_DIR', './storage/attachments'));
+    this.bucket = this.config.getOrThrow<string>('AWS_S3_BUCKET');
+    this.client = new S3Client({
+      region: this.config.getOrThrow<string>('AWS_S3_REGION'),
+      credentials: {
+        accessKeyId: this.config.getOrThrow<string>('AWS_S3_ACCESS_KEY_ID'),
+        secretAccessKey: this.config.getOrThrow<string>('AWS_S3_SECRET_ACCESS_KEY'),
+      },
+    });
   }
 
   /** Salva o conteúdo e retorna a chave relativa a persistir no banco. */
   async save(quoteId: string, originalName: string, buffer: Buffer): Promise<string> {
-    const dir = join(this.baseDir, quoteId);
-    await mkdir(dir, { recursive: true });
-    const key = join(quoteId, `${randomUUID()}${extname(originalName)}`);
-    await writeFile(join(this.baseDir, key), buffer);
+    const key = `${quoteId}/${randomUUID()}${extname(originalName)}`;
+    await this.client.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: buffer }),
+    );
     return key;
   }
 
   /** Stream de leitura para servir o download. Lança se o arquivo não existir. */
-  async readStream(storageKey: string) {
-    const path = join(this.baseDir, storageKey);
-    await stat(path);
-    return createReadStream(path);
+  async readStream(storageKey: string): Promise<Readable> {
+    const { Body } = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: storageKey }),
+    );
+    return Body as Readable;
   }
 
   async readBuffer(storageKey: string): Promise<Buffer> {
-    return readFile(join(this.baseDir, storageKey));
+    const { Body } = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: storageKey }),
+    );
+    const bytes = await Body!.transformToByteArray();
+    return Buffer.from(bytes);
   }
 
   async delete(storageKey: string) {
-    await rm(join(this.baseDir, storageKey), { force: true });
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: storageKey }),
+    );
   }
 }
