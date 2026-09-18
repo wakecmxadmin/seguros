@@ -1,4 +1,5 @@
 import type { CalculationResult, QuoteFormValues } from '../useQuoteForm';
+import type { SigraDraft } from '../SigraPullPanel';
 
 export interface StepProps {
   values: QuoteFormValues;
@@ -7,6 +8,10 @@ export interface StepProps {
   result: CalculationResult | null;
   /** Rótulos dos registros já vinculados, para exibir nos autocompletes ao editar. */
   initialLabels?: { client?: string | null; partner?: string | null };
+  /** `false` só na criação — o botão "Puxar do SIGRA" não aparece ao editar. */
+  isEditing?: boolean;
+  sigraDraft?: SigraDraft | null;
+  onSigraLinked?: (draft: SigraDraft) => void;
 }
 
 /** Título de bloco dentro de uma etapa. */

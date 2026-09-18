@@ -23,8 +23,11 @@ import { useAuth } from '@/stores/auth';
 interface Rate {
   id: string;
   date: string;
-  rate: string;
-  source: string;
+  /** PTAX pura do dia, quando importada. */
+  baseRate: string | null;
+  /** Taxa efetivamente usada no cálculo — oficial (+6%) ou lançamento manual. */
+  appliedRate: string | null;
+  appliedSource: 'OFICIAL' | 'MANUAL' | null;
   currency: { id: string; code: string; name: string };
 }
 
@@ -84,21 +87,27 @@ export default function ExchangeRates() {
       ),
     },
     {
-      key: 'rate',
-      header: 'Cotação (R$)',
+      key: 'baseRate',
+      header: 'Valor base — PTAX (R$)',
       numeric: true,
-      render: (row) => Number(row.rate).toFixed(4).replace('.', ','),
+      render: (row) => (row.baseRate ? Number(row.baseRate).toFixed(4).replace('.', ',') : '—'),
+    },
+    {
+      key: 'appliedRate',
+      header: 'Valor +6% (R$)',
+      numeric: true,
+      render: (row) =>
+        row.appliedRate ? Number(row.appliedRate).toFixed(4).replace('.', ',') : '—',
     },
     {
       key: 'source',
       header: 'Origem',
-      width: '130px',
-      render: (row) =>
-        row.source === 'PTAX' ? (
-          <Badge variant="info">PTAX · BCB</Badge>
-        ) : (
-          <Badge variant="warning">Manual</Badge>
-        ),
+      width: '160px',
+      render: (row) => {
+        if (row.appliedSource === 'MANUAL') return <Badge variant="warning">Manual</Badge>;
+        if (row.appliedSource === 'OFICIAL') return <Badge variant="success">Oficial · +6%</Badge>;
+        return <Badge variant="info">PTAX · sem fórmula</Badge>;
+      },
     },
   ];
 
@@ -112,8 +121,12 @@ export default function ExchangeRates() {
           <p className="mt-1 max-w-2xl text-[13.5px] leading-relaxed text-muted-foreground">
             Câmbio usado para converter prêmio e importância segurada em reais. A PTAX do Banco
             Central é importada automaticamente todo dia útil — no legado, alguém digitava a
-            cotação do dólar manualmente. Use "Importar PTAX" para reimportar um período específico
-            ou "Lançar manual" para corrigir uma data.
+            cotação do dólar manualmente. Para Dólar, Euro, Franco Suíço, Iene e Libra Esterlina, a
+            coluna "Valor +6%" mostra a <strong className="font-medium text-foreground">taxa
+            oficial da corretora</strong> (PTAX + 6%, fórmula confirmada) — é ela que entra no
+            cálculo do prêmio; a coluna "Valor base" é a PTAX pura, só para referência. Use
+            "Importar PTAX" para reimportar um período específico ou "Lançar manual" para corrigir
+            uma data.
           </p>
         </div>
         {canEdit && (
@@ -237,7 +250,7 @@ function ImportPtaxDialog({ onClose, onDone }: { onClose: () => void; onDone: ()
       <DialogContent className="max-w-md">
         <DialogHeader
           title="Importar PTAX"
-          description="Busca as cotações oficiais do Banco Central para o período."
+          description="Busca as cotações do Banco Central para o período e calcula a taxa oficial (PTAX + 6%) das moedas com fórmula confirmada."
         />
         <DialogBody>
           <div className="grid gap-4 sm:grid-cols-2">

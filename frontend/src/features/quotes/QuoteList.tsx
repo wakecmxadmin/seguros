@@ -16,6 +16,7 @@ import { useAuth } from '@/stores/auth';
 interface QuoteRow {
   id: string;
   number: number;
+  reference: string | null;
   kind: keyof typeof QuoteKind;
   status: keyof typeof QuoteStatus;
   position: keyof typeof QuotePosition;
@@ -26,6 +27,8 @@ interface QuoteRow {
   modal: keyof typeof Modal;
   client: { id: string; legalName: string; tradeName: string | null };
   partner: { id: string; legalName: string; tradeName: string | null } | null;
+  insurer: { id: string; legalName: string; tradeName: string | null } | null;
+  salesperson: { id: string; name: string } | null;
   currency: { code: string } | null;
   policy: { number: string } | null;
 }
@@ -56,19 +59,21 @@ export default function QuoteList() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [kind, setKind] = useState('');
+  const [page, setPage] = useState(1);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['quotes', search, status, kind],
+    queryKey: ['quotes', search, status, kind, page],
     queryFn: async () => {
       const { data } = await api.get('/quotes', {
         params: {
           ...(search ? { search } : {}),
           ...(status ? { status } : {}),
           ...(kind ? { kind } : {}),
+          page,
           perPage: 50,
         },
       });
-      return data as { items: QuoteRow[]; total: number };
+      return data as { items: QuoteRow[]; total: number; page: number; pages: number };
     },
   });
 
@@ -95,6 +100,12 @@ export default function QuoteList() {
       ),
     },
     {
+      key: 'reference',
+      header: 'Referência',
+      width: '120px',
+      render: (row) => row.reference || <span className="text-muted-foreground">—</span>,
+    },
+    {
       key: 'client',
       header: 'Cliente',
       render: (row) => (
@@ -109,6 +120,17 @@ export default function QuoteList() {
           )}
         </div>
       ),
+    },
+    {
+      key: 'insurer',
+      header: 'Seguradora',
+      width: '160px',
+      render: (row) =>
+        row.insurer ? (
+          <span className="block truncate">{row.insurer.tradeName || row.insurer.legalName}</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     {
       key: 'kind',
@@ -137,6 +159,17 @@ export default function QuoteList() {
       ),
     },
     {
+      key: 'salesperson',
+      header: 'Vendedor',
+      width: '150px',
+      render: (row) =>
+        row.salesperson ? (
+          <span className="block truncate">{row.salesperson.name}</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
       key: 'insuredAmount',
       header: 'I.S.',
       numeric: true,
@@ -152,6 +185,12 @@ export default function QuoteList() {
       header: 'Prêmio',
       numeric: true,
       render: (row) => formatMoney(row.premiumClient),
+    },
+    {
+      key: 'policy',
+      header: 'Apólice',
+      width: '110px',
+      render: (row) => row.policy?.number || <span className="text-muted-foreground">—</span>,
     },
     {
       key: 'pending',
@@ -176,6 +215,7 @@ export default function QuoteList() {
     <Page
       title="Cotações"
       description="Processos de seguro de transporte, da proposta à averbação."
+      wide
       actions={
         can('quote:create') && (
           <div className="flex items-center gap-2">
@@ -196,7 +236,10 @@ export default function QuoteList() {
         <div className="mb-4 flex flex-wrap gap-2.5">
           {summary.open > 0 && (
             <button
-              onClick={() => setStatus('QUOTE')}
+              onClick={() => {
+                setStatus('QUOTE');
+                setPage(1);
+              }}
               className="rounded-md border border-border bg-surface px-3.5 py-2 text-left transition-colors hover:bg-surface-alt"
             >
               <span className="tabular block text-[18px] font-semibold text-foreground">
@@ -221,7 +264,10 @@ export default function QuoteList() {
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             placeholder="Buscar por processo, cliente, referência ou fatura"
             className="pl-9"
           />
@@ -236,7 +282,10 @@ export default function QuoteList() {
           ].map((option) => (
             <button
               key={option.value}
-              onClick={() => setStatus(option.value)}
+              onClick={() => {
+                setStatus(option.value);
+                setPage(1);
+              }}
               className={`rounded px-3 py-1.5 text-[13px] font-medium transition-colors ${
                 status === option.value
                   ? 'bg-navy/8 text-navy'
@@ -256,7 +305,10 @@ export default function QuoteList() {
           ].map((option) => (
             <button
               key={option.value}
-              onClick={() => setKind(option.value)}
+              onClick={() => {
+                setKind(option.value);
+                setPage(1);
+              }}
               className={`rounded px-3 py-1.5 text-[13px] font-medium transition-colors ${
                 kind === option.value
                   ? 'bg-navy/8 text-navy'
@@ -303,9 +355,32 @@ export default function QuoteList() {
       </div>
 
       {data && items.length > 0 && (
-        <p className="mt-3 text-[13px] text-muted-foreground">
-          {data.total} processo{data.total === 1 ? '' : 's'}
-        </p>
+        <div className="mt-3 flex items-center justify-between">
+          <p className="text-[13px] text-muted-foreground">
+            {data.total} processo{data.total === 1 ? '' : 's'}
+            {data.pages > 1 && ` · página ${data.page} de ${data.pages}`}
+          </p>
+          {data.pages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= data.pages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Próxima
+              </Button>
+            </div>
+          )}
+        </div>
       )}
     </Page>
   );

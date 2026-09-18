@@ -30,6 +30,7 @@ const ROLES: Array<{
       ...Object.keys(PERMISSIONS.endorsements),
       ...Object.keys(PERMISSIONS.documents),
       ...Object.keys(PERMISSIONS.communications),
+      ...Object.keys(PERMISSIONS.sigra),
       'company:list', 'company:update',
       'employee:list',
       'catalog:list',
@@ -45,6 +46,7 @@ const ROLES: Array<{
     permissions: [
       ...Object.keys(PERMISSIONS.finance),
       ...Object.keys(PERMISSIONS.fx),
+      ...Object.keys(PERMISSIONS.sigra),
       'quote:list',
       'endorsement:list',
       'company:list',
@@ -64,6 +66,7 @@ const ROLES: Array<{
       'document:generate',
       'message:list', 'message:send', 'gmail:connect',
       'report:ranking',
+      ...Object.keys(PERMISSIONS.sigra),
     ],
   },
   {

@@ -8,15 +8,18 @@ import { Prisma, QuoteKind, QuotePosition, QuoteStatus, RateLineItem } from '@pr
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { FxService } from '../fx/fx.service';
+import { SigraProcessService } from '../sigra/sigra-process.service';
 import type { RequestContext } from '../auth/auth.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { calculateQuote, type CalculationInput } from './quote-calculator';
+import { mapSigraToQuoteDraft } from './sigra-draft-mapper';
 import { resolveClientRate } from '../policies/rate-resolver';
 import { CalculateQuoteDto, ListQuotesDto, PreviewQuoteDto, SaveQuoteDto } from './dto/quotes.dto';
 
 const listSelect = {
   id: true,
   number: true,
+  reference: true,
   kind: true,
   status: true,
   position: true,
@@ -29,6 +32,7 @@ const listSelect = {
   client: { select: { id: true, legalName: true, tradeName: true } },
   partner: { select: { id: true, legalName: true, tradeName: true } },
   insurer: { select: { id: true, legalName: true, tradeName: true } },
+  salesperson: { select: { id: true, name: true } },
   currency: { select: { id: true, code: true } },
   policy: { select: { id: true, number: true } },
 } satisfies Prisma.QuoteSelect;
@@ -57,6 +61,7 @@ export class QuotesService {
     private prisma: PrismaService,
     private audit: AuditService,
     private fx: FxService,
+    private sigra: SigraProcessService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -605,6 +610,66 @@ export class QuotesService {
     });
 
     return { ok: true };
+  }
+
+  /**
+   * Busca um processo do SIGRA e traduz pra sugestões de preenchimento do
+   * formulário de nova cotação — usado pelo botão "Puxar do SIGRA". Não cria
+   * nem altera nada; a referência só é gravada quando a cotação é salva
+   * (ver `addReference`).
+   */
+  async getSigraDraft(sigraId: number) {
+    const data = await this.sigra.getFullProcess(sigraId);
+    if (!data.summary) {
+      throw new NotFoundException(`Processo ${sigraId} não encontrado no SIGRA.`);
+    }
+    const draft = mapSigraToQuoteDraft(data);
+    const origin = await this.resolveOriginFromLocode(data.summary.localEmbarque);
+
+    return { ...draft, suggestion: { ...draft.suggestion, ...origin } };
+  }
+
+  /**
+   * `local_embarque` do SIGRA vem como `"<UN/LOCODE> - <nome>"` (ex.:
+   * `"CNTAO - TSINGTAO"`). O prefixo é o próprio código UN/LOCODE — casa com o
+   * nosso catálogo de portos/países quando existir; senão fica `null` (o
+   * operador escolhe manualmente, o catálogo tem só os portos mais usados).
+   */
+  private async resolveOriginFromLocode(localEmbarque: string | null) {
+    const prefix = localEmbarque?.split(' - ')[0]?.trim().toUpperCase() ?? '';
+    if (!/^[A-Z]{5}$/.test(prefix)) {
+      return { originCountryId: null, originPortId: null };
+    }
+
+    const [country, port] = await Promise.all([
+      this.prisma.country.findFirst({ where: { iso2: prefix.slice(0, 2) } }),
+      this.prisma.port.findFirst({ where: { code: prefix } }),
+    ]);
+
+    return { originCountryId: country?.id ?? null, originPortId: port?.id ?? null };
+  }
+
+  /**
+   * Dados do processo no SIGRA, localizado pela referência externa `source: 'SIGRA'`
+   * já cadastrada na cotação (ver `addReference`). `null` quando não há referência
+   * SIGRA cadastrada — não é erro, é um estado válido (processo ainda sem vínculo).
+   */
+  async getSigraData(quoteId: string, user: AuthenticatedUser) {
+    await this.findOne(quoteId, user);
+
+    const reference = await this.prisma.externalReference.findFirst({
+      where: { quoteId, source: 'SIGRA' },
+    });
+    if (!reference) return null;
+
+    const sigraId = Number(reference.value);
+    if (!Number.isFinite(sigraId)) {
+      throw new BadRequestException(
+        `Referência SIGRA "${reference.value}" não é um ID numérico válido.`,
+      );
+    }
+
+    return this.sigra.getFullProcess(sigraId);
   }
 
   /** Busca um processo por qualquer uma das referências cadastradas. */

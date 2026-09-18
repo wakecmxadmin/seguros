@@ -5,12 +5,14 @@ interface PageProps {
   description?: string;
   actions?: ReactNode;
   children: ReactNode;
+  /** Telas com tabelas largas (muitas colunas) podem pedir mais espaço horizontal. */
+  wide?: boolean;
 }
 
 /** Cabeçalho padrão das telas internas. */
-export function Page({ title, description, actions, children }: PageProps) {
+export function Page({ title, description, actions, children, wide }: PageProps) {
   return (
-    <div className="mx-auto max-w-[1400px] px-6 py-8 lg:px-8">
+    <div className={`mx-auto ${wide ? 'max-w-[1680px]' : 'max-w-[1400px]'} px-6 py-8 lg:px-8`}>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-[22px] font-semibold tracking-tight text-foreground">{title}</h1>

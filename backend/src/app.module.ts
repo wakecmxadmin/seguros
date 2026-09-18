@@ -20,6 +20,7 @@ import { SettingsModule } from './settings/settings.module';
 import { StorageModule } from './storage/storage.module';
 import { GmailModule } from './gmail/gmail.module';
 import { CommunicationsModule } from './communications/communications.module';
+import { SigraModule } from './sigra/sigra.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { CommunicationsModule } from './communications/communications.module';
     SettingsModule,
     GmailModule,
     CommunicationsModule,
+    SigraModule,
   ],
 })
 export class AppModule {}

@@ -10,3 +10,8 @@ coverage/
 .vite/
 backend/storage/
 backend/certs/
+# Dados extraídos do sistema legado (CNPJ, endereço, telefone — dado real de negócio,
+# nunca commitar). Ver backend/prisma/import-legacy-parceiros.ts.
+backend/prisma/data/
+docs/legado-parceiros.json
+legado-parceiros.json

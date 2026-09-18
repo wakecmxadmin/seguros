@@ -550,20 +550,23 @@ model PolicyCoverage {
 
 /// Cotação diária. No legado era digitada à mão, card a card, e só o dólar
 /// era alimentado — ver docs/10-dores-e-melhorias.md (item 3).
+/// Pode haver mais de um registro por data/moeda (uma linha por `source`) —
+/// para as 5 moedas com fórmula confirmada (tarefa 48), a PTAX pura e a taxa
+/// oficial (PTAX + 6%) convivem lado a lado para comparação.
 model ExchangeRate {
   id         String   @id @default(uuid())
   date       DateTime @db.Date
   currencyId String
   currency   Currency @relation(fields: [currencyId], references: [id], onDelete: Cascade)
-  /// Valor fiscal usado na conversão para BRL.
+  /// Valor usado na conversão quando esta é a fonte escolhida — ver FxService.rateFor.
   rate       Decimal  @db.Decimal(18, 6)
-  /// PTAX importada automaticamente x lançamento manual.
+  /// PTAX (pura, auxiliar) · OFICIAL (PTAX + 6%, usada no cálculo) · MANUAL (lançamento manual, tem prioridade).
   source     String   @default("MANUAL")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([date, currencyId])
+  @@unique([date, currencyId, source])
   @@index([currencyId, date])
   @@map("exchange_rates")
 }

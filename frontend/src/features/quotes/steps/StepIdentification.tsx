@@ -5,9 +5,12 @@ import { Switch } from '@/components/ui/switch';
 import { Field } from '@/components/ui/field';
 import { Combobox } from '@/components/ui/combobox';
 import { api } from '@/lib/api';
+import { SigraPullPanel } from '../SigraPullPanel';
 import { SectionTitle, type StepProps } from './types';
 
-export function StepIdentification({ values, set, errors, initialLabels }: StepProps) {
+export function StepIdentification({
+  values, set, errors, initialLabels, isEditing, sigraDraft, onSigraLinked,
+}: StepProps) {
   const { data: policies } = useQuery({
     queryKey: ['policy-options', values.kind, values.insurerId],
     queryFn: async () => {
@@ -38,6 +41,13 @@ export function StepIdentification({ values, set, errors, initialLabels }: StepP
 
   return (
     <div>
+      {!isEditing && values.kind === 'IMPORT' && (
+        <>
+          <SectionTitle>Importar do SIGRA</SectionTitle>
+          <SigraPullPanel linked={sigraDraft ?? null} set={set} onLinked={onSigraLinked!} />
+        </>
+      )}
+
       <SectionTitle>Processo</SectionTitle>
       <div className="grid gap-4 sm:grid-cols-4">
         <Field label="Data" htmlFor="issueDate">

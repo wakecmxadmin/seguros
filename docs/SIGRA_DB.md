@@ -1,7 +1,7 @@
 ---
 title: "Banco de Dados SIGRA — Referência"
-description: "Schemas, tabelas e campos do banco externo sigraweb (Pinho) acessado por TypeORM e MCP"
-last_updated: "2026-09-17"
+description: "Schemas, tabelas e campos do banco externo sigraweb (Pinho) acessado por pool pg dedicada e MCP"
+last_updated: "2026-09-18"
 relates_to:
   - "INTEGRATIONS.md"
   - "MODULES.md"
@@ -14,7 +14,7 @@ tags: ["sigra", "database", "postgres", "integrations", "duimp"]
 ## Quick Reference
 - Banco externo `sigraweb` (PostgreSQL 15.15, ~271 GB) hospedado em `34.95.156.249:5432` (Cloud SQL goog)
 - Acesso requer TLS mútuo: CA + client cert + client key em `backend/certs/sigra/`
-- 5 schemas relevantes: `pinho` (410 tabelas — principais), `public` (411), `braxcom` (405), `audit` (437), `global` (95)
+- 5 schemas relevantes: `pinho` (**467 tabelas** — confirmado via `pg_class` em 2026-09-18, ver [inventário completo](14-sigra-tabelas.md); a cifra "410" era estimativa antiga), `public` (411), `braxcom` (405), `audit` (437), `global` (95)
 - Tabelas-chave do domínio Pinho: `pinho.imp_processo` (187K linhas), `pinho.imp_adicao`, `pinho.imp_adicao_item`, `pinho.processo` (supertipo de processos)
 - `pinho.imp_processo` tem **222 colunas**; o SIGRA usa o mesmo registro para DI e DUIMP
 - **Campo que distingue DI de DUIMP: `pinho.imp_processo.tipo_servico`** (`'DI'` / `'DUIMP'`), preenchido já na criação. O formato de `cd_di` só discrimina *depois* do registro — ver [DI vs DUIMP](#di-vs-duimp-tipo_servico)
@@ -22,19 +22,25 @@ tags: ["sigra", "database", "postgres", "integrations", "duimp"]
 - **Data de "Registro" da planilha/UI do SIGRA**: `pinho.processo.dt_registro` (recebida pela API via campo `dtRegistro`)
 - **Data oficial de autorização da Receita**: `pinho.imp_processo.dt_autorizacao_registro` (recebida via `dtAutorizacaoRegistro`, truncada em minutos)
 - ⚠️ **Bug de fuso horário da API SIGRA**: `dtRegistro` recebido é interpretado como **BRT local**, mesmo com sufixo `Z` — enviar horário naive "colado" como UTC (ver seção [Bug de fuso horário](#bug-de-fuso-horário-da-api-sigra))
-- Acesso leitura no backend: `SigraDbService` (TypeORM connection nomeada `'sigra'`)
+- Acesso leitura no backend deste projeto: módulo `backend/src/sigra` — pool `pg` dedicado (não
+  Prisma, que é só para o banco próprio `seguros`), exposto pelo `SigraProcessService`
+  (ver [Uso no Backend](#uso-no-backend))
 - Acesso leitura via MCP: servidor `postgres-sigra` (read-only via `default_transaction_read_only=on`)
-- Entidades TypeORM mapeadas: apenas `ImpProcesso`, `ImpAdicao`, `ImpAdicaoItem` (fração mínima do schema real)
+- Só os campos já confirmados linha a linha estão mapeados no backend (`imp_processo`, `processo`,
+  `imp_adicao`, `imp_adicao_item`, `imp_processo_container`) — fração mínima do schema real
 - **API pública SIGRA opera só por CNPJ** para despachante/importador — não aceita ID nem expõe ID no GET. Quando há múltiplas `sis_empresa` com o mesmo CNPJ (ex.: 5 da Pinho com `79608055000139`), o lookup escolhe arbitrariamente. Para forçar uma específica, use UPDATE direto (ver [Múltiplos CNPJ duplicados](#múltiplas-empresas-com-mesmo-cnpj-no-sigra)).
-- **Escrita direta no DB SIGRA é possível em casos excepcionais**: user `pinho` tem permissão de `UPDATE` no schema `pinho`. O MCP é read-only só por config de sessão; o `DataSource('sigra')` do backend não tem essa restrição.
+- **Escrita direta no DB SIGRA é possível em casos excepcionais**: user `pinho` tem permissão de `UPDATE` no schema `pinho`. O MCP é read-only só por config de sessão; a pool `pg` do backend reforça read-only na sessão (`default_transaction_read_only=on`) e recusa localmente qualquer SQL fora de SELECT/WITH, mas o privilégio de escrita do usuário `pinho` no banco continua existindo — nunca usar essa conexão para nada além dos métodos já expostos em `SigraProcessService`.
 - ⚠️ **Nunca conectar nem rodar queries direto neste banco a partir do Claude Code** — mesmo com os certificados/credenciais disponíveis localmente. Toda investigação no SIGRA é feita fornecendo a query pronta para o usuário rodar e colar o resultado de volta (ver `CLAUDE.md` § Trabalho no banco do SIGRA).
 - **Taxa cambial do processo**: `pinho.imp_processo.vl_taxa_dolar` — é a taxa de câmbio (PTAX + spread do câmbio contratado) usada no próprio DI/DUIMP, distinta da taxa oficial da corretora (abertura + 6%, ver tarefa 48). Confirmada exata contra dois processos reais em 2026-09-17 (ver [Valores e câmbio do processo](#valores-e-câmbio-do-processo)).
 - **Muito mais dado estruturado do que o `imp_processo` sozinho sugere**: o schema `pinho` tem tabelas satélite dedicadas para BL (`imp_processo_bl*`), contêiner (`imp_processo_container`), fatura (`imp_fatura*`), CE Mercante (`ce_mercante*`, `ce_manifesto*`) e até documento/arquivo genérico (`op_processo_documento`, `sis_arquivo`) — ver [Tabelas satélite (levantamento inicial)](#tabelas-satélite-levantamento-inicial-2026-09-17).
 
 ## Conexão
 
-### Backend (TypeORM)
-Configurada em `backend/src/entities/sigra-process/sigra-process.module.ts` como DataSource nomeado `'sigra'`. SSL habilitado quando `DB_SIGRA_SSL_CA/CERT/KEY` estão presentes, com `rejectUnauthorized: true` e `checkServerIdentity: () => undefined` (cert do servidor só tem DNS goog no SAN, não o IP).
+### Backend (pool `pg` dedicado)
+Configurada em `backend/src/sigra/sigra-connection.service.ts` (`SigraConnectionService`) — pool
+`pg` própria, separada do Prisma (que só serve o banco `seguros` deste projeto). SSL habilitado
+quando `DB_SIGRA_SSL_CA/CERT/KEY` estão presentes, com `rejectUnauthorized: true` e
+`checkServerIdentity: () => undefined` (cert do servidor só tem DNS goog no SAN, não o IP).
 
 Variáveis de ambiente (em `.env` / `.env.prod`):
 ```env
@@ -48,7 +54,8 @@ DB_SIGRA_SSL_CERT=certs/sigra/client-cert.pem
 DB_SIGRA_SSL_KEY=certs/sigra/client-key.pem
 ```
 
-Fallback seguro: se qualquer variável estiver ausente, o módulo retorna `manualInitialization: true` e o pool não é aberto (sem MissingDriverError nem retries infinitos).
+Fallback seguro: se qualquer uma de `DB_SIGRA_HOST/PORT/USERNAME/PASSWORD/DATABASE` estiver ausente,
+`SigraConnectionService.isConfigured()` retorna `false` e o pool nunca é aberto — sem erro no boot.
 
 ### MCP (Claude Code — read-only)
 Entrada em `.mcp.json` (gitignored):
@@ -307,28 +314,41 @@ Catálogo de moedas (sigla/nome) referenciado por `id_moeda_fob`. Usada em `SxMo
 
 ## Uso no Backend
 
-`SigraDbService` expõe apenas 4 métodos (arquivo: `backend/src/entities/sigra-process/services/sigra-db.service.ts`):
+`SigraProcessService` (arquivo: `backend/src/sigra/sigra-process.service.ts`) expõe 4 métodos, cada
+um um único `SELECT` parametrizado via `SigraConnectionService.query()`:
 
 ```typescript
-// 1. Processos criados em D-1 (usado pelo NumerarioPopulationService)
-getProcessosByData(data: Date): Promise<ImpProcesso[]>
+// 1. Resumo do processo (BL/booking, datas, valores, câmbio, tributos)
+getSummary(sigraId: number): Promise<SigraProcessSummary | null>
 
-// 2. Itens de um processo (usado pelo ItemPopulationService)
-getItensByProcessoId(idProcesso: number): Promise<ImpAdicaoItem[]>
+// 2. Adições (exportador/fornecedor, NCM, incoterm) — pinho.imp_adicao
+getAdditions(sigraId: number): Promise<SigraAddition[]>
 
-// 3. Contagem de adições
-countAdicionsByProcessoId(idProcesso: number): Promise<number>
+// 3. Itens de cada adição (invoice, part number, quantidade, valores) — pinho.imp_adicao_item
+getItems(sigraId: number): Promise<SigraItem[]>
 
-// 4. Valores financeiros (tributos, frete, seguro, peso)
-getProcessoValoresById(id: number): Promise<Partial<ImpProcesso> | null>
+// 4. Contêineres do processo — pinho.imp_processo_container
+getContainers(sigraId: number): Promise<SigraContainer[]>
+
+// Atalho que roda os 4 em paralelo:
+getFullProcess(sigraId: number): Promise<SigraFullProcess>
 ```
 
-Consumidores:
-- `ItemPopulationService` → endpoints `POST /item/populate-from-sigra`, `GET /item/from-sigra/:idProcesso`
-- `NumerarioPopulationService.popularNumerarioDia` (sem gatilho HTTP — chamável internamente)
-- `calculation.ts` (numerario) → `calcularValorNumerarioProcesso`, `contarItensProcesso`, `verificarLimiteNumerario`
+Tipos de retorno em `backend/src/sigra/sigra-process.types.ts`.
 
-> ⚠️ **Só 3 entidades TypeORM** (`ImpProcesso`, `ImpAdicao`, `ImpAdicaoItem`) estão mapeadas. Para consultar qualquer outra tabela do SIGRA (ex.: `duimp_processo_transmissao`, colunas além das mapeadas), use **queries SQL cruas** via `DataSource('sigra').query(...)` ou adicione a entity.
+Consumidores:
+- `GET /sigra/processes/:id` (`SigraController`, permissão `sigra:read`)
+- `GET /quotes/:id/sigra` (`QuotesService.getSigraData`) — resolve o `idProcesso` SIGRA a partir do
+  `ExternalReference` (`source: 'SIGRA'`) já cadastrado na cotação (tarefa 30); retorna `null` quando
+  a cotação não tem referência SIGRA vinculada
+
+> ⚠️ **Só os campos confirmados linha a linha estão mapeados** (`imp_processo`, `processo`,
+> `imp_adicao`, `imp_adicao_item`, `imp_processo_container`) — ver
+> [13-sigra-campos-necessarios.md](13-sigra-campos-necessarios.md). BL detalhado (`imp_processo_bl*`),
+> CE Mercante (`ce_mercante*`/`ce_manifesto*`), fatura (`imp_fatura*`) e a cadeia de documento/arquivo
+> (`op_processo_documento`/`sis_arquivo`) ainda **não** têm método correspondente — dependem da
+> rodada 3 de queries da tarefa 47. Para consultar qualquer tabela ainda não mapeada, adicione um
+> método novo em `SigraProcessService` (sempre um `SELECT` só, nunca acesso solto a outras tabelas).
 
 ## Exemplos
 
@@ -437,4 +457,4 @@ Sempre setar `dt_modificacao = NOW()` no UPDATE direto — a API SIGRA faz isso 
 - [BUSINESS_LOGIC.md](./BUSINESS_LOGIC.md) — fluxos que consomem dados do SIGRA (populate-from-sigra, numerário)
 - [DATA_MODELS.md](./DATA_MODELS.md) — modelo `processes.pinho_reference` que referencia `imp_processo.id`
 
-_Atualizado em: 2026-09-17_
+_Atualizado em: 2026-09-18_

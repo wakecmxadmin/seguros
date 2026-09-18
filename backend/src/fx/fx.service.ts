@@ -19,6 +19,17 @@ const PTAX_SUPPORTED = new Set([
   'USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'SEK', 'NOK', 'DKK', 'CNY',
 ]);
 
+/**
+ * Moedas com a fórmula da taxa oficial da corretora confirmada (tarefa 48):
+ * PTAX do dia + 6%. É essa taxa — não a PTAX pura — que a corretora usa para
+ * fechar câmbio, e é ela que entra no cálculo de prêmio.
+ */
+const OFFICIAL_MARKUP_CURRENCIES = new Set(['USD', 'EUR', 'CHF', 'JPY', 'GBP']);
+const OFFICIAL_MARKUP = 1.06;
+
+/** Prioridade de fonte ao escolher a cotação vigente de uma data. */
+const SOURCE_PRIORITY = ['MANUAL', 'OFICIAL', 'PTAX'];
+
 @Injectable()
 export class FxService {
   private readonly logger = new Logger(FxService.name);
@@ -65,16 +76,59 @@ export class FxService {
         : {}),
     };
 
-    const [items, total] = await Promise.all([
-      this.prisma.exchangeRate.findMany({
-        where,
-        include: { currency: { select: { id: true, code: true, name: true } } },
-        orderBy: [{ date: 'desc' }, { currency: { code: 'asc' } }],
-        skip: (page - 1) * perPage,
-        take: perPage,
-      }),
-      this.prisma.exchangeRate.count({ where }),
-    ]);
+    const rows = await this.prisma.exchangeRate.findMany({
+      where,
+      include: { currency: { select: { id: true, code: true, name: true } } },
+    });
+
+    // Uma linha por data/moeda: a PTAX pura (`baseRate`) e a taxa efetivamente
+    // usada no cálculo (`appliedRate` — oficial +6% ou lançamento manual, quando
+    // houver) convivem na mesma linha em vez de aparecerem duplicadas.
+    const groups = new Map<
+      string,
+      {
+        date: Date;
+        currency: { id: string; code: string; name: string };
+        ptax?: (typeof rows)[number];
+        oficial?: (typeof rows)[number];
+        manual?: (typeof rows)[number];
+      }
+    >();
+
+    for (const row of rows) {
+      const key = `${row.date.getTime()}_${row.currencyId}`;
+      const group = groups.get(key) ?? { date: row.date, currency: row.currency };
+      if (row.source === 'PTAX') group.ptax = row;
+      else if (row.source === 'OFICIAL') group.oficial = row;
+      else if (row.source === 'MANUAL') group.manual = row;
+      groups.set(key, group);
+    }
+
+    const merged = Array.from(groups.values()).map((g) => {
+      const applied = g.manual ?? g.oficial ?? null;
+      const anyRow = (g.manual ?? g.oficial ?? g.ptax)!;
+      return {
+        id: anyRow.id,
+        date: g.date,
+        currency: g.currency,
+        baseRate: g.ptax ? g.ptax.rate : null,
+        appliedRate: applied ? applied.rate : null,
+        appliedSource: g.manual ? ('MANUAL' as const) : g.oficial ? ('OFICIAL' as const) : null,
+      };
+    });
+
+    // Moedas com taxa oficial confirmada (+6%, tarefa 48) sobem para o topo de
+    // cada data — são as que entram no cálculo de prêmio; o resto segue alfabético.
+    merged.sort((a, b) => {
+      if (a.date.getTime() !== b.date.getTime()) return b.date.getTime() - a.date.getTime();
+      const aMarkup = OFFICIAL_MARKUP_CURRENCIES.has(a.currency.code);
+      const bMarkup = OFFICIAL_MARKUP_CURRENCIES.has(b.currency.code);
+      if (aMarkup !== bMarkup) return aMarkup ? -1 : 1;
+      return a.currency.code.localeCompare(b.currency.code);
+    });
+
+    const total = merged.length;
+    const items = merged.slice((page - 1) * perPage, (page - 1) * perPage + perPage);
 
     return { items, total, page, perPage, pages: Math.ceil(total / perPage) };
   }
@@ -83,6 +137,11 @@ export class FxService {
    * Taxa vigente para uma moeda numa data. Se não houver lançamento no dia
    * (fim de semana, feriado), usa o último dia útil anterior — o legado
    * simplesmente não tinha cotação e o cálculo parava.
+   *
+   * Pode haver mais de uma fonte cadastrada na mesma data (PTAX pura e
+   * OFICIAL convivendo, por exemplo) — a escolhida segue `SOURCE_PRIORITY`:
+   * lançamento manual sempre vence; na ausência dele, a taxa oficial
+   * (PTAX + 6%, tarefa 48); só na ausência de ambas cai para a PTAX pura.
    */
   async rateFor(currencyId: string, date = new Date()) {
     const currency = await this.prisma.currency.findUnique({ where: { id: currencyId } });
@@ -91,37 +150,51 @@ export class FxService {
     // Real não converte.
     if (currency.code === 'BRL') return { rate: 1, date, source: 'BRL', fallback: false };
 
-    const exact = await this.prisma.exchangeRate.findUnique({
-      where: { date_currencyId: { date: this.startOfDay(date), currencyId } },
-    });
-    if (exact) {
-      return { rate: Number(exact.rate), date: exact.date, source: exact.source, fallback: false };
+    const target = this.startOfDay(date);
+    const exactRows = await this.prisma.exchangeRate.findMany({ where: { currencyId, date: target } });
+    if (exactRows.length) {
+      const picked = this.pickBySource(exactRows);
+      return { rate: Number(picked.rate), date: picked.date, source: picked.source, fallback: false };
     }
 
-    const previous = await this.prisma.exchangeRate.findFirst({
-      where: { currencyId, date: { lte: this.startOfDay(date) } },
+    const lastDate = await this.prisma.exchangeRate.findFirst({
+      where: { currencyId, date: { lte: target } },
       orderBy: { date: 'desc' },
+      select: { date: true },
     });
-    if (!previous) {
+    if (!lastDate) {
       throw new BadRequestException(
         `Não há cotação cadastrada para ${currency.code}. Importe a PTAX ou lance manualmente.`,
       );
     }
 
+    const previousRows = await this.prisma.exchangeRate.findMany({
+      where: { currencyId, date: lastDate.date },
+    });
+    const picked = this.pickBySource(previousRows);
+
     return {
-      rate: Number(previous.rate),
-      date: previous.date,
-      source: previous.source,
+      rate: Number(picked.rate),
+      date: picked.date,
+      source: picked.source,
       fallback: true,
     };
+  }
+
+  private pickBySource<T extends { source: string }>(rows: T[]): T {
+    for (const source of SOURCE_PRIORITY) {
+      const found = rows.find((row) => row.source === source);
+      if (found) return found;
+    }
+    return rows[0];
   }
 
   async upsert(dto: UpsertRateDto, authorId: string, ctx: RequestContext) {
     const date = this.startOfDay(new Date(dto.date));
 
     const rate = await this.prisma.exchangeRate.upsert({
-      where: { date_currencyId: { date, currencyId: dto.currencyId } },
-      update: { rate: dto.rate, source: 'MANUAL' },
+      where: { date_currencyId_source: { date, currencyId: dto.currencyId, source: 'MANUAL' } },
+      update: { rate: dto.rate },
       create: { date, currencyId: dto.currencyId, rate: dto.rate, source: 'MANUAL' },
       include: { currency: { select: { code: true } } },
     });
@@ -165,6 +238,7 @@ export class FxService {
       try {
         const quotes = await this.fetchPtax(currency.code, params.from, params.to);
         let imported = 0;
+        const hasMarkup = OFFICIAL_MARKUP_CURRENCIES.has(currency.code);
 
         for (const quote of quotes) {
           const date = this.startOfDay(new Date(quote.dataHoraCotacao));
@@ -173,10 +247,21 @@ export class FxService {
           if (!value) continue;
 
           await this.prisma.exchangeRate.upsert({
-            where: { date_currencyId: { date, currencyId: currency.id } },
-            update: { rate: value, source: 'PTAX' },
+            where: { date_currencyId_source: { date, currencyId: currency.id, source: 'PTAX' } },
+            update: { rate: value },
             create: { date, currencyId: currency.id, rate: value, source: 'PTAX' },
           });
+
+          // Taxa oficial da corretora (tarefa 48): PTAX do dia + 6%. A PTAX
+          // pura acima segue registrada como fonte auxiliar/comparação.
+          if (hasMarkup) {
+            const official = Number((value * OFFICIAL_MARKUP).toFixed(6));
+            await this.prisma.exchangeRate.upsert({
+              where: { date_currencyId_source: { date, currencyId: currency.id, source: 'OFICIAL' } },
+              update: { rate: official },
+              create: { date, currencyId: currency.id, rate: official, source: 'OFICIAL' },
+            });
+          }
           imported++;
         }
 

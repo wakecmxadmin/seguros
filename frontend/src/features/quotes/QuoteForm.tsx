@@ -23,6 +23,7 @@ import { StepCargo } from './steps/StepCargo';
 import { StepFinancial } from './steps/StepFinancial';
 import { StepRates } from './steps/StepRates';
 import { CommunicationPanel } from './communications/CommunicationPanel';
+import type { SigraDraft } from './SigraPullPanel';
 
 const STEPS = [
   { key: 'identification', label: 'Identificação' },
@@ -46,6 +47,7 @@ export default function QuoteForm() {
   const [values, setValues] = useState<QuoteFormValues>(() => emptyQuote(kindParam));
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [sigraDraft, setSigraDraft] = useState<SigraDraft | null>(null);
 
   const set = <K extends keyof QuoteFormValues>(key: K, value: QuoteFormValues[K]) =>
     setValues((v) => ({ ...v, [key]: value }));
@@ -165,8 +167,21 @@ export default function QuoteForm() {
       const payload = toPayload(values);
       return isEditing ? api.patch(`/quotes/${id}`, payload) : api.post('/quotes', payload);
     },
-    onSuccess: ({ data }) => {
+    onSuccess: async ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+
+      if (!isEditing && sigraDraft) {
+        try {
+          await api.post(`/quotes/${data.id}/references`, {
+            source: 'SIGRA',
+            value: sigraDraft.sigraId,
+          });
+        } catch (error) {
+          // A cotação já foi criada — só avisa, não bloqueia a navegação.
+          toast.error(`Cotação criada, mas não foi possível vincular o processo SIGRA: ${errorMessage(error)}`);
+        }
+      }
+
       toast.success(
         isEditing ? 'Cotação atualizada.' : `Cotação ${data.number} criada.`,
       );
@@ -305,6 +320,9 @@ export default function QuoteForm() {
                   client: existing?.client?.tradeName ?? existing?.client?.legalName ?? null,
                   partner: existing?.partner?.tradeName ?? existing?.partner?.legalName ?? null,
                 }}
+                isEditing={isEditing}
+                sigraDraft={sigraDraft}
+                onSigraLinked={setSigraDraft}
               />
             )}
           </div>

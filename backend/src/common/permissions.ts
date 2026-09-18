@@ -78,6 +78,9 @@ export const PERMISSIONS = {
     'message:send': 'Enviar mensagem por e-mail a partir de um processo',
     'gmail:connect': 'Conectar ou desconectar a própria conta Gmail',
   },
+  sigra: {
+    'sigra:read': 'Consultar dados do processo no SIGRA (documentos, valores, câmbio)',
+  },
 } as const;
 
 export type PermissionSlug = {

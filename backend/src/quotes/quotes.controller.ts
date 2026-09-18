@@ -1,5 +1,6 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards,
+  Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, Req,
+  UseGuards,
 } from '@nestjs/common';
 import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import type { Request } from 'express';
@@ -60,10 +61,24 @@ export class QuotesController {
     return this.quotes.findByReference(value, user);
   }
 
+  /** Sugestões de preenchimento a partir de um processo do SIGRA — botão "Puxar do SIGRA". */
+  @RequirePermissions('quote:create', 'sigra:read')
+  @Get('sigra-draft/:sigraId')
+  getSigraDraft(@Param('sigraId', ParseIntPipe) sigraId: number) {
+    return this.quotes.getSigraDraft(sigraId);
+  }
+
   @RequirePermissions('quote:list')
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.quotes.findOne(id, user);
+  }
+
+  /** Dados do processo no SIGRA vinculado à cotação (`null` se não houver referência SIGRA). */
+  @RequirePermissions('quote:list', 'sigra:read')
+  @Get(':id/sigra')
+  getSigraData(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quotes.getSigraData(id, user);
   }
 
   @RequirePermissions('quote:create')
