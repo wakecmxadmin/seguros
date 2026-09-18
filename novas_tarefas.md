@@ -86,7 +86,17 @@
   Mercante, terminal) e **não estão no SIGRA como arquivo** — só as datas/valores equivalentes
   (`dt_embarque`, `dt_presenca_carga`, `vl_frete`, taxa cambial, etc.). Se confirmado, os PDFs
   continuam entrando pelo módulo `communications` (tarefa 31) e só os campos estruturados vêm do SIGRA.
-  Bloqueia as tarefas 43 e 49.
+  Bloqueia as tarefas 43 e 49. — 17/09/2026: primeira rodada de queries rodada pelo usuário (nunca
+  direto pelo Claude, ver `CLAUDE.md`) confirmou a maioria dos campos de BL, invoice, valores e **a
+  taxa cambial do processo** (`vl_taxa_dolar`) direto em `pinho.imp_processo`/`imp_adicao`/
+  `imp_adicao_item` — ver `docs/13-sigra-campos-necessarios.md`. A **hipótese foi refutada**: existem
+  dezenas de tabelas satélite (`imp_processo_bl`, `imp_processo_container`, `ce_mercante_*`,
+  `ce_manifesto_*`, `op_processo_documento`, `sis_arquivo`) ainda não conferidas. Segunda rodada
+  (mesmo dia) levantou a estrutura completa dessas tabelas — quase todo campo que faltava já tem
+  coluna candidata identificada, incluindo indício de que o PDF pode estar acessível via
+  `sis_arquivo.url`. Falta a **terceira rodada** (queries de linha já escritas em
+  `docs/13-sigra-campos-necessarios.md § Status e próximos passos`) para confirmar contra os
+  processos 1901475/1898813 e então fechar a tarefa.
 
 - [ ] **44.** **Fazer a integração de dados com o SIGRA**, a partir do mapeamento da tarefa 43 — trazer
   os campos úteis (datas do processo, valores, itens) para dentro do sistema de seguros.

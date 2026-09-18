@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Logger, Query, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { Response } from 'express';
@@ -18,6 +18,8 @@ import { CurrentUser, type AuthenticatedUser } from '../auth/decorators/current-
  */
 @Controller('gmail')
 export class GmailController {
+  private readonly logger = new Logger(GmailController.name);
+
   constructor(
     private gmail: GmailService,
     private config: ConfigService,
@@ -53,7 +55,8 @@ export class GmailController {
       if (!code) throw new Error('Código ausente.');
       await this.gmail.connect(userId, code);
       res.redirect(`${appUrl}/gmail/callback?status=success`);
-    } catch {
+    } catch (error) {
+      this.logger.error(`Falha no callback OAuth do Gmail: ${error instanceof Error ? error.message : error}`);
       res.redirect(`${appUrl}/gmail/callback?status=error`);
     }
   }

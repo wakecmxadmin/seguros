@@ -44,16 +44,25 @@ export function useGmailStatus() {
 export function useConnectGmail() {
   const queryClient = useQueryClient();
   return async () => {
+    // O popup precisa ser aberto de forma síncrona dentro do clique: navegadores
+    // baseados em WebKit (Safari) bloqueiam window.open() se ele rodar depois de
+    // um await/callback assíncrono, mesmo sem qualquer política extra do usuário.
+    const popup = window.open('', 'gmail-oauth', 'width=520,height=680');
+    if (!popup) {
+      toast.error('O navegador bloqueou a janela de conexão. Permita pop-ups para este site e tente novamente.');
+      return;
+    }
     try {
       const { data } = await api.get<{ url: string }>('/gmail/auth-url');
-      const popup = window.open(data.url, 'gmail-oauth', 'width=520,height=680');
+      popup.location.href = data.url;
       const timer = window.setInterval(() => {
-        if (popup?.closed) {
+        if (popup.closed) {
           window.clearInterval(timer);
           queryClient.invalidateQueries({ queryKey: ['gmail-status'] });
         }
       }, 500);
     } catch (error) {
+      popup.close();
       toast.error(errorMessage(error, 'Não foi possível iniciar a conexão com o Gmail.'));
     }
   };

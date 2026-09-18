@@ -78,6 +78,17 @@ Ou seja: `UserDialog.tsx` com `<Button>Salvar</Button>` — nunca `UsuarioDialog
 
 ---
 
+# Trabalho no banco do SIGRA (Always Follow)
+
+* O banco `sigraweb` (SIGRA) é de **terceiro** (Infoline Systems) e está em produção real.
+* **Nunca conectar nem executar queries diretamente nesse banco** — nem leitura, nem escrita — mesmo
+  havendo certificados/credenciais disponíveis em `backend/certs/sigra/` e `backend/.env`.
+* Quando for preciso investigar algo no SIGRA (estrutura de tabela, valores de um processo, etc.),
+  **fornecer a query pronta para o usuário rodar ele mesmo** e aguardar o resultado ser colado de volta.
+* Referência de schema/tabelas já levantadas: [`docs/SIGRA_DB.md`](docs/SIGRA_DB.md).
+
+---
+
 # UI/UX (Always Follow)
 
 * A interface deve ser **leve, intuitiva e simples de entender** — e **não pode ter cara de gerada por IA**.

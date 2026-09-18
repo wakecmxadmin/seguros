@@ -94,18 +94,18 @@ export function AppLayout() {
         className={cn(
           // `sticky` + `h-screen` prende a sidebar à altura da janela: sem isso ela
           // acompanha a altura do conteúdo e "estica" em páginas longas.
-          'fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-border bg-surface transition-transform',
+          'fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-border bg-[#f7f7f7] transition-transform',
           'lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
           navOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b border-border px-5">
+        <div className="relative flex h-24 items-center justify-center border-b border-border px-5">
           <Link to="/" onClick={() => setNavOpen(false)}>
-            <Brand chip />
+            <Brand large />
           </Link>
           <button
             onClick={() => setNavOpen(false)}
-            className="grid h-8 w-8 place-items-center rounded text-muted-foreground lg:hidden"
+            className="absolute right-4 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded text-muted-foreground lg:hidden"
             aria-label="Fechar menu"
           >
             <X className="h-4 w-4" />

@@ -1,7 +1,7 @@
 ---
 title: "Banco de Dados SIGRA — Referência"
 description: "Schemas, tabelas e campos do banco externo sigraweb (Pinho) acessado por TypeORM e MCP"
-last_updated: "2026-08-11"
+last_updated: "2026-09-17"
 relates_to:
   - "INTEGRATIONS.md"
   - "MODULES.md"
@@ -27,6 +27,9 @@ tags: ["sigra", "database", "postgres", "integrations", "duimp"]
 - Entidades TypeORM mapeadas: apenas `ImpProcesso`, `ImpAdicao`, `ImpAdicaoItem` (fração mínima do schema real)
 - **API pública SIGRA opera só por CNPJ** para despachante/importador — não aceita ID nem expõe ID no GET. Quando há múltiplas `sis_empresa` com o mesmo CNPJ (ex.: 5 da Pinho com `79608055000139`), o lookup escolhe arbitrariamente. Para forçar uma específica, use UPDATE direto (ver [Múltiplos CNPJ duplicados](#múltiplas-empresas-com-mesmo-cnpj-no-sigra)).
 - **Escrita direta no DB SIGRA é possível em casos excepcionais**: user `pinho` tem permissão de `UPDATE` no schema `pinho`. O MCP é read-only só por config de sessão; o `DataSource('sigra')` do backend não tem essa restrição.
+- ⚠️ **Nunca conectar nem rodar queries direto neste banco a partir do Claude Code** — mesmo com os certificados/credenciais disponíveis localmente. Toda investigação no SIGRA é feita fornecendo a query pronta para o usuário rodar e colar o resultado de volta (ver `CLAUDE.md` § Trabalho no banco do SIGRA).
+- **Taxa cambial do processo**: `pinho.imp_processo.vl_taxa_dolar` — é a taxa de câmbio (PTAX + spread do câmbio contratado) usada no próprio DI/DUIMP, distinta da taxa oficial da corretora (abertura + 6%, ver tarefa 48). Confirmada exata contra dois processos reais em 2026-09-17 (ver [Valores e câmbio do processo](#valores-e-câmbio-do-processo)).
+- **Muito mais dado estruturado do que o `imp_processo` sozinho sugere**: o schema `pinho` tem tabelas satélite dedicadas para BL (`imp_processo_bl*`), contêiner (`imp_processo_container`), fatura (`imp_fatura*`), CE Mercante (`ce_mercante*`, `ce_manifesto*`) e até documento/arquivo genérico (`op_processo_documento`, `sis_arquivo`) — ver [Tabelas satélite (levantamento inicial)](#tabelas-satélite-levantamento-inicial-2026-09-17).
 
 ## Conexão
 
@@ -186,6 +189,108 @@ LEFT JOIN pinho.op_centro_custo cc ON cc.nome = h.nome
 ORDER BY (cc.id IS NULL) DESC;
 ```
 
+### Valores e câmbio do processo
+
+Confirmado em 2026-09-17 contra os processos reais **1901475** (sem impostos) e **1898813** (com
+impostos, Farm Direct Food) — todos exatos, direto em `pinho.imp_processo`, sem tabela satélite:
+
+| Coluna | Significado | Exemplo (1898813) |
+|---|---|---|
+| **`vl_taxa_dolar`** | **Taxa cambial USD do processo** (a que a tela de Valores do SIGRA mostra como "Taxa USD") | `5.1253` |
+| `vl_fob` / `vl_fob_ext` | FOB em BRL / moeda estrangeira | `204499.52` / `39900.01` |
+| `vl_frete` / `vl_frete_ext` | Frete total em BRL / moeda estrangeira | `33826.93` / `6599.99` |
+| `vl_frete_prepaid_ext` | Frete pré-pago (preenchido só quando aplicável) | `6599.99` |
+| `vl_frete_collect_ext` | Frete a pagar no destino (preenchido só quando aplicável) | `null` (era o caso do outro processo) |
+| `vl_seguro` / `vl_seguro_ext` | Seguro em BRL / moeda estrangeira | `243.45` / `47.50` |
+| `vl_siscomex` | Taxa Siscomex | `154.23` |
+| `vl_taxas_capatazia` | Capatazia | `0` |
+| `vl_taxas_diversas` | Taxas diversas | `0` |
+| `vl_aduaneiro_brl` / `vl_aduaneiro_ext` | Valor aduaneiro em BRL / moeda estrangeira | `238569.90` / `46547.50` |
+| `peso_bruto` / `peso_liquido` | Peso do processo (kg) | `26000` / `25000` |
+| `doc_carga` | Número do BL/booking/conhecimento de carga | `SHP0120615` |
+| `doc_carga_master` | BL master (quando o `doc_carga` é house) | `null` nos exemplos |
+| `tipo_conhecimento` | Tipo de conhecimento (`HouseBL`, etc.) | `HouseBL` |
+| `local_embarque` | Porto/local de embarque (texto livre, ex.: `"CNTAO - TSINGTAO"`) | — |
+| `ce_mercante` | Número do CE Mercante (parece ser o "filhote"; master ainda não localizado) | `162605269687586` |
+| `manifesto` | Número do manifesto — veio `null` nos dois exemplos testados | `null` |
+| `avaria` | Descrição da avaria do contêiner (`null` = sem avaria) | `null` |
+| `dt_inicio_desova` / `dt_fim_desova` | Datas de estufagem/desova em terminal | `null` nos exemplos (sem desova) |
+
+`pinho.imp_adicao.nome` (+ `pais`/`cidade`/`cep`/`logradouro`) traz o **exportador/fornecedor** por
+adição, e `pinho.imp_adicao.id_incoterms` o Incoterm (FK, catálogo não conferido ainda).
+`pinho.imp_adicao_item.numero_invoice` traz o **número da invoice/fatura comercial** por item —
+confirmado exato. Ver [13-sigra-campos-necessarios.md](13-sigra-campos-necessarios.md) para o
+mapeamento completo campo a campo, com o que ainda falta confirmar em tabelas satélite.
+
+### Tabelas satélite (levantamento inicial, 2026-09-17)
+
+Consulta a `information_schema.tables` do schema `pinho` filtrando por nome (BL, documento, mercante,
+manifesto, container, invoice/fatura) — colunas **ainda não levantadas**, só a existência confirmada:
+
+| Grupo | Tabelas |
+|---|---|
+| BL / conhecimento (importação) | `imp_processo_bl`, `imp_processo_bl_container`, `imp_processo_bl_taxas` |
+| BL / conhecimento (agenciamento) | `age_booking`, `age_conhecimento`, `age_conhecimento_hawb`, `age_conhecimento_mawb`, `age_documento_bl` |
+| Contêiner | `imp_processo_container`, `exp_processo_container`, `age_processo_container`, `age_processo_container_situacao_especial`, `trk_embarque_container`, `wh_receipt_container` |
+| CE Mercante | `ce_mercante`, `ce_mercante_componentes_frete`, `ce_mercante_doc_despacho`/`docs_despacho`, `ce_mercante_frete`, `ce_mercante_item`/`itens`, `ce_mercante_item_lacres`, `ce_mercante_item_ncm`, `ce_mercante_lacre`, `ce_mercante_manifesto`, `ce_mercante_transbordo`/`transbordos` |
+| Manifesto | `ce_manifesto`, `ce_manifesto_escala`, `ce_manifesto_terminal`, `rem_manifesto`, `rod_manifesto` (+ várias `rod_manifesto_*` de transporte rodoviário) |
+| Fatura (nível processo, distinta de `imp_adicao_item`) | `imp_fatura`, `imp_fatura_item`, `imp_fatura_item_lpco`, `exp_fatura`, `exp_fatura_item`, `coda_imp_fatura`, `coda_imp_fatura_item` |
+| CCT | `cct_tela`, `cct_tela_aereo`, `cct_tela_maritimo`, `cct_tela_maritimo_embalagens`, `cct_tela_maritimo_fretes`, `cct_maritimo_frete`, `cct_maritimo_embalagem`, `cct_recepcao`, `cct_total_origem` |
+| Documento/arquivo genérico | `op_processo_documento`, `op_documento`, `op_despacho_documento`, `op_documento_despacho_relacao`, `sis_arquivo`, `imp_adicao_documento_vinculado`, `rep_documento` |
+
+⚠️ Não sabemos ainda se essas tabelas guardam **dados estruturados equivalentes** ao documento (datas,
+números, valores) ou o **arquivo/PDF em si** (via `sis_arquivo`). Próxima rodada de queries vai colunar
+essas tabelas e testar contra os processos 1901475/1898813 — ver
+[13-sigra-campos-necessarios.md § Status e próximos passos](13-sigra-campos-necessarios.md#status-e-próximos-passos).
+
+**Estrutura das tabelas satélite (colunas levantadas em 2026-09-17, ainda sem dado de linha testado):**
+
+- **`pinho.imp_processo_bl`** — BL inteiro estruturado: `numero_bl`, `booking`, `invoice`, `due`,
+  `nome_navio`, `viagem_navio`, `porto_origem`, `porto_destino`, `cubagem`, `peso_bruto_total`,
+  `peso_liquido_total`, `qtde_container`, `qtde_volume`, `tipo_frete`, `embarcador_nome`/`cnpj`/
+  `endereco`, `importador_nome`/`cnpj`/`endereco`, `local_emissao`/`entrega`/`recebimento`,
+  `freetime`, `liberacao_bl`. **Não tem coluna `id_processo`** — hipótese a testar: compartilha o
+  mesmo `id` do processo (mesmo padrão de `pinho.processo`/`imp_processo`).
+  - `imp_processo_bl_container` (FK `imp_processo_bl_containers` → `imp_processo_bl.id`): contêiner
+    detalhado do BL (`container`, `container_tipo`, `container_lacre`, pesos, cubagem).
+  - `imp_processo_bl_taxas` (FK `imp_processo_bl_taxas` → `imp_processo_bl.id`): taxas/encargos
+    nomeados do BL (`taxa_nome`, `taxa_valor`, `taxa_moeda`).
+- **`pinho.imp_processo_container`** — **tem `id_processo` direto** (sem ambiguidade): `numero`,
+  `tamanho`, `tipo`, `lacre`, `situacao`, `avarias`, datas de devolução/desunitização, custos
+  (`vl_demurrage`, `vl_custo_total`).
+- **`pinho.imp_fatura`** — cabeçalho de fatura com `id_processo` direto: `numero_fatura`,
+  `dt_emissao`, `nome`+endereço (fornecedor), `valor_total`, `valor_frete`, `valor_seguro`,
+  `peso_liquido`, `id_incoterms`, `id_moeda`/`id_moeda_frete`/`id_moeda_seguro`,
+  `tipo_vinculo_fornecedor`, `id_cobertura_cambial`. `imp_fatura_item` (FK `id_fatura` + `id_processo`)
+  tem os itens, com muitas colunas espelhando `imp_adicao_item` (`numero_invoice`, `ncm`, `part_number`,
+  `quantidade`, `vl_total`, tributos).
+- **`pinho.ce_mercante`** — cabeçalho do CE Mercante, vinculado por **chave de negócio**
+  (`ce_mercante.numero = imp_processo.ce_mercante`), não por `id_processo`: `ce_mercante_master`,
+  `situacao`, `dt_emissao`, `cubagem`, `peso_bruto`, `moeda_frete`, `valor_frete_basico`,
+  `modalidade_frete`, `recolhimento_frete`, `porto_origem`, `porto_destino_final`,
+  `razao_social_transportador`/`cnpj_transportador`, `razao_social_consignatario`/
+  `cnpj_consignatario`, `tipo_conhecimento`, `nr_bl_conhecimento_original`, `id_ultimo_manifesto` (FK).
+  - `ce_mercante_item` (FK `id_ce_mercante`): contêiner por item (`nr_container`, `tamanho`,
+    `tipo_container`, `peso_bruto`, `tara`, `volume`), mercadoria perigosa.
+  - `ce_mercante_frete` (FK `id_mercante`): linhas de frete nomeadas (`nome`, `valor`, `moeda`,
+    `recolhimento`) — provável fonte do "frete total" (soma das linhas) vs. "frete básico" do
+    cabeçalho.
+  - `ce_mercante_lacre` (FK `id_ce_mercante_item`), `ce_mercante_transbordo` (FK `id_ce_mercante`),
+    `ce_mercante_doc_despacho` (FK `id_ce_mercante`).
+  - `ce_manifesto` (via `ce_mercante.id_ultimo_manifesto`): `numero` (número do manifesto),
+    `agencia_navegacao`, `empresa_navegacao`, `embarcacao`, `porto_carregamento`/
+    `porto_descarregamento`, `dt_emissao`.
+    - `ce_manifesto_escala` (FK `id_manifesto`): `nome_navio`, `dt_atracacao`, `porto`, `cd_viagem`.
+    - `ce_manifesto_terminal` (FK `id_manifesto`): `codigo`/`nome` do terminal.
+- **Cadeia de documento/arquivo genérica**: `op_processo_documento` (`id_processo`, `id_documento`) →
+  `op_documento` (`tipo`, `numero`, `dt_criacao`, coluna `arquivo` → FK) → `pinho.sis_arquivo` (`nome`,
+  `url`, `tamanho`). A coluna **`sis_arquivo.url` sugere que o arquivo/PDF pode estar acessível
+  diretamente**, não só o metadado — a confirmar rodando a query e checando se `arquivo_url` vem
+  preenchida para os processos de exemplo.
+  - `imp_adicao_documento_vinculado` (`id_processo`, `id_adicao`, `cd_documento`,
+    `tipo_documento_vinculado`): referência de documento por adição (ex.: LI, DUE), não
+    necessariamente um arquivo.
+
 ### `pinho.imp_adicao`
 Adições de uma DI/DUIMP. FK em `id_processo`. Usada por `SigraDbService.countAdicionsByProcessoId`.
 
@@ -332,4 +437,4 @@ Sempre setar `dt_modificacao = NOW()` no UPDATE direto — a API SIGRA faz isso 
 - [BUSINESS_LOGIC.md](./BUSINESS_LOGIC.md) — fluxos que consomem dados do SIGRA (populate-from-sigra, numerário)
 - [DATA_MODELS.md](./DATA_MODELS.md) — modelo `processes.pinho_reference` que referencia `imp_processo.id`
 
-_Atualizado em: 2026-08-11_
+_Atualizado em: 2026-09-17_

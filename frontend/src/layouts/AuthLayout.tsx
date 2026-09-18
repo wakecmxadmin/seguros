@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import logo from '@/assets/logo.jpeg';
+import shipPhoto from '@/assets/login-ship.jpg';
 import { cn } from '@/lib/utils';
 
 interface AuthLayoutProps {
@@ -10,77 +11,44 @@ interface AuthLayoutProps {
 }
 
 /**
- * Layout das telas de acesso: painel institucional à esquerda, formulário à direita.
- * No mobile o painel some e sobra apenas o formulário com a marca no topo.
+ * Layout das telas de acesso: painel institucional (foto + texto) à esquerda,
+ * marca e formulário à direita. No mobile o painel some e sobra só o formulário.
  */
 export function AuthLayout({ title, description, children, footer }: AuthLayoutProps) {
   return (
     <div className="flex min-h-screen">
       {/* Painel institucional */}
-      <aside className="relative hidden w-[44%] max-w-[560px] shrink-0 overflow-hidden bg-navy-deep lg:flex lg:flex-col lg:justify-between">
-        {/* Malha de rotas — desenho geométrico discreto, evoca comércio exterior sem virar ilustração */}
-        <svg
-          className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.13]"
-          viewBox="0 0 560 900"
-          fill="none"
-          aria-hidden
-        >
-          <defs>
-            <pattern id="grade" width="56" height="56" patternUnits="userSpaceOnUse">
-              <path d="M56 0H0v56" stroke="white" strokeWidth="0.5" fill="none" />
-            </pattern>
-          </defs>
-          <rect width="560" height="900" fill="url(#grade)" />
-          <path
-            d="M60 640C150 620 190 470 300 430S470 330 520 210"
-            stroke="white"
-            strokeWidth="1.5"
-            strokeDasharray="7 9"
-            fill="none"
+      <aside className="hidden w-1/2 shrink-0 bg-background p-12 lg:flex">
+        <div className="relative flex h-full w-full flex-col justify-end overflow-hidden rounded-2xl shadow-sm">
+          <img
+            src={shipPhoto}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 h-full w-full object-cover"
           />
-          <path
-            d="M40 300C140 330 250 300 330 360S460 520 520 560"
-            stroke="white"
-            strokeWidth="1.5"
-            strokeDasharray="7 9"
-            fill="none"
-          />
-          {[
-            [60, 640],
-            [300, 430],
-            [520, 210],
-            [40, 300],
-            [330, 360],
-            [520, 560],
-          ].map(([cx, cy]) => (
-            <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="4" fill="white" />
-          ))}
-        </svg>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-navy-deep/30 to-transparent" />
 
-        <div className="relative p-12">
-          <Brand light />
-        </div>
+          <div className="relative p-10">
+            <p className="max-w-sm text-[22px] font-semibold leading-snug text-white">
+              Seguro de transporte internacional, do orçamento à averbação.
+            </p>
+            <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-white/70">
+              Cotação, provisória, definitiva e financeiro no mesmo lugar.
+            </p>
+          </div>
 
-        <div className="relative p-12">
-          <p className="max-w-sm text-[22px] font-semibold leading-snug text-white">
-            Seguro de transporte internacional, do orçamento à averbação.
-          </p>
-          <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-white/60">
-            Cotação, provisória, definitiva e financeiro no mesmo lugar.
-          </p>
-        </div>
-
-        <div className="relative border-t border-white/10 px-12 py-6">
-          <p className="text-[13px] text-white/40">
-            Pinho Corretora de Seguros · Comércio Exterior
-          </p>
+          <div className="relative border-t border-white/15 px-10 py-6">
+            <p className="text-[13px] text-white/50">
+              Pinho Corretora de Seguros · Comércio Exterior
+            </p>
+          </div>
         </div>
       </aside>
 
       {/* Formulário */}
       <main className="flex flex-1 items-center justify-center px-6 py-12">
-        <div className="w-full max-w-[380px] animate-slide-up">
-          <div className="mb-10 lg:hidden">
+        <div className="w-full max-w-[400px] animate-slide-up">
+          <div className="mb-10">
             <Brand />
           </div>
 
@@ -98,18 +66,17 @@ export function AuthLayout({ title, description, children, footer }: AuthLayoutP
   );
 }
 
-export function Brand({ light, chip }: { light?: boolean; chip?: boolean }) {
+export function Brand({ chip, large }: { chip?: boolean; large?: boolean }) {
   return (
     <img
       src={logo}
       alt="Coomex"
       className={cn(
-        chip ? 'h-9' : 'h-7',
-        'w-auto',
-        light && 'rounded-md bg-white px-2.5 py-1.5',
+        large ? 'h-24 w-48' : 'h-14 w-32',
+        'object-contain',
         // Fundo do JPEG não é branco puro: é o cinza neutro #F7F7F7 (medido
         // nos cantos vazios da imagem). Usamos o mesmo tom no chip para a
-        // borda da imagem não aparecer sobre o bg-surface branco da sidebar.
+        // borda da imagem não aparecer sobre um fundo branco.
         chip && 'rounded-md bg-[#F7F7F7] px-2.5 py-1.5',
       )}
     />
