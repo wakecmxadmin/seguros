@@ -58,12 +58,15 @@ export interface CalculationInput {
   salespersonPercent?: number;
 
   /**
-   * Agravo aplicado sobre o valor a pagar à seguradora, em %.
-   * O campo no banco legado se chama `vlDolarAPagarAgravo20` (20%), mas a
-   * Planilha Produção exibe "AGRAVO 25%". Parametrizado até o cliente confirmar
-   * qual é a regra vigente — ver novas_tarefas.md, item 1.
+   * Agravo, em %: o desconto que a seguradora concede sobre o prêmio dela,
+   * reduzindo o valor que a corretora efetivamente paga.
+   *
+   * Confirmado pelo cliente em 03/11/2026 — importação 0,25 %, exportação
+   * 0,30 %. É o que explica as colunas `Dif USD` e `% de Rentabilidade` da
+   * Planilha Produção do legado: o cliente paga o prêmio cheio e a seguradora
+   * recebe menos. Vem dos Parâmetros quando não informado.
    */
-  insurerSurchargePercent?: number;
+  payableDiscountPercent?: number;
 }
 
 export interface CalculatedLine {
@@ -89,9 +92,10 @@ export interface CalculationResult {
   grossMargin: number;
   marginPercent: number;
 
-  /** Valor a pagar à seguradora, com agravo. */
+  /** Valor efetivamente pago à seguradora: prêmio − agravo. */
   insurerPayable: number;
-  insurerSurcharge: number;
+  /** Agravo em valor — o desconto concedido pela seguradora. */
+  payableDiscount: number;
 
   commissions: {
     partner: number;
@@ -220,12 +224,18 @@ export function calculateQuote(input: CalculationInput): CalculationResult {
   const minimumPremiumUsed = premiumClient > premiumClientRaw;
 
   // --- 5. Margem e repasse ------------------------------------------------
-  const grossMargin = money(premiumClient - premiumInsurer);
-  const marginPercent = premiumClient > 0 ? round((grossMargin / premiumClient) * 100, MONEY) : 0;
+  // O agravo é desconto, não acréscimo: a seguradora libera um percentual do
+  // prêmio e a corretora paga a diferença. O piso em zero evita que um
+  // percentual digitado errado (acima de 100) vire pagamento negativo.
+  const discountPercent = input.payableDiscountPercent ?? 0;
+  const payableDiscount = money((premiumInsurer * discountPercent) / 100);
+  const insurerPayable = money(Math.max(premiumInsurer - payableDiscount, 0));
 
-  const surchargePercent = input.insurerSurchargePercent ?? 0;
-  const insurerSurcharge = money((premiumInsurer * surchargePercent) / 100);
-  const insurerPayable = money(premiumInsurer + insurerSurcharge);
+  // Rentabilidade = prêmio do cliente − o que de fato sai para a seguradora,
+  // já com o agravo abatido. É a conta das colunas `Dif USD` e
+  // `% de Rentabilidade` da Planilha Produção do legado.
+  const grossMargin = money(premiumClient - insurerPayable);
+  const marginPercent = premiumClient > 0 ? round((grossMargin / premiumClient) * 100, MONEY) : 0;
 
   // --- 6. Comissões -------------------------------------------------------
   const partner = money((premiumClient * (input.partnerPercent ?? 0)) / 100);
@@ -245,7 +255,7 @@ export function calculateQuote(input: CalculationInput): CalculationResult {
     grossMargin,
     marginPercent,
     insurerPayable,
-    insurerSurcharge,
+    payableDiscount,
     commissions: {
       partner,
       broker,

@@ -214,16 +214,16 @@ export function StepRates({ values, set, result }: StepProps) {
           />
         </Field>
         <Field
-          label="Agravo seguradora (%)"
-          htmlFor="insurerSurchargePercent"
-          hint="A confirmar com o cliente: 20% ou 25%."
+          label="Agravo (%)"
+          htmlFor="payableDiscountPercent"
+          hint="Desconto da seguradora sobre o prêmio dela. Vem do cliente, se ele tiver agravo próprio, senão dos Parâmetros."
         >
           <Input
-            id="insurerSurchargePercent"
+            id="payableDiscountPercent"
             className="tabular text-right"
             inputMode="decimal"
-            value={values.insurerSurchargePercent}
-            onChange={(e) => set('insurerSurchargePercent', e.target.value)}
+            value={values.payableDiscountPercent}
+            onChange={(e) => set('payableDiscountPercent', e.target.value)}
           />
         </Field>
       </div>

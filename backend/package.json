@@ -15,7 +15,7 @@
     "seed": "ts-node -P prisma/tsconfig.json prisma/seed.ts",
     "seed:catalog": "ts-node -P prisma/tsconfig.json prisma/seed-catalog.ts",
     "sigra:test": "ts-node scripts/test-sigra-process.ts",
-    "import:legacy-parceiros": "ts-node -P prisma/tsconfig.json prisma/import-legacy-parceiros.ts"
+    "import:legacy": "ts-node -P prisma/tsconfig.json prisma/import-legacy.ts"
   },
   "prisma": {
     "seed": "ts-node -P prisma/tsconfig.json prisma/seed.ts"

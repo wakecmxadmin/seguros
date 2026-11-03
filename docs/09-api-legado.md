@@ -120,6 +120,36 @@ Todas as chamadas observadas são **POST** com corpo JSON (mesmo as de leitura),
 - `/perfil/salvarPerfil`
 - `/perfilMenu/salvar`
 
+## `/cadastro` — endpoints de leitura usados na migração (tarefa 51)
+
+Confirmados em 03/11/2026, todos `POST` com o envelope de paginação. Passando
+`qtRegistrosPorPagina` alto, cada um devolve o cadastro inteiro em uma requisição.
+Volumes reais medidos:
+
+| Endpoint | Cadastro | Registros |
+|---|---|---|
+| `obterTodosClientes` | Clientes | **2.797** |
+| `obterTodosNavios` | Navios | 1.357 |
+| `obterTodosParceiros` | Parceiros | 287 |
+| `obterTodosApolices` | Apólices | 67 |
+| `obterTodosModelosPropostas` | Modelos de Proposta | 63 |
+| `obterTodasEmbalagens` | Embalagens | 48 |
+| `obterTodasSeguradoras` | Seguradoras | 10 |
+| `obterTodasCoberturas` | Coberturas | 4 (uma é a sentinela vazia) |
+| `obterTodosFuncionarios` | Funcionários | 4 |
+| `obterTodasMercadorias` | Mercadorias | 2 |
+| `obterTodasTransportadoras` | Transportadoras | **0 — cadastro vazio** |
+
+> A estimativa de "~75 clientes" que circulava na tarefa 51 vinha de contar as páginas
+> visíveis na barra de paginação, que mostra só 5 números por vez. São **2.797**.
+
+> **Não existe cadastro de Vistoriadores** no legado: nenhuma rota `*Selecao` e nenhum
+> endpoint `obterTodos*` correspondente. O item estava no escopo da tarefa 51 por engano.
+
+Autenticação: header `Authorization` com o token da sessão. O corpo segue o modelo
+`{nuConsulta, nuPagina, qtRegistrosPorPagina, qtPaginas, cdEmpresa, cdRestricao, cdUsuario, registros:[{id:{}}]}`
+— `cdEmpresa` é `"Fidcargo"` neste tenant.
+
 ## `/cadastro` — cadastros gerais (197 endpoints)
 Endpoints CRUD genéricos por entidade, no padrão `obterTodos<Entidade>` / `salvar<Entidade>` /
 `remover<Entidade>` / `obter<Entidade>`. Cobrem países, estados, cidades, portos, apólices, clientes,

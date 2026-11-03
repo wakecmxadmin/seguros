@@ -334,6 +334,8 @@ model Packaging {
 model Vessel {
   id        String  @id @default(uuid())
   name      String
+  /// Código do cadastro de Navios do legado (`cdNavio`).
+  legacyCode String? @unique
   /// IMO number, quando conhecido.
   imo       String?
   /// Ano de construção — usado no adicional por idade da embarcação.
@@ -408,6 +410,19 @@ model Company {
   notes  String?
   active Boolean @default(true)
 
+  /// Prêmio mínimo negociado com este cliente (`vlPremioMinimoCliente` no legado,
+  /// preenchido em 977 dos 2.797 clientes). Não aparecia em tela nenhuma do legado
+  /// e é forte candidato a explicar o piso que o cálculo aplica — ver tarefas 7 e 36.
+  /// A moeda não veio mapeada: o legado guarda `cdMoeda` por cliente, predominantemente
+  /// o código 2, ainda não correlacionado ao nosso catálogo.
+  minimumPremium Decimal? @db.Decimal(18, 2)
+
+  /// Agravo negociado especificamente com este cliente, em %. Quando nulo vale
+  /// o parâmetro do ramo (ver SettingsService). Existe porque o legado tinha um
+  /// slot fixo de agravo para um único cliente (a FRESNOMAQ, "Importação
+  /// Fresno") — aqui qualquer cliente pode ter o seu, sem mexer em código.
+  payableDiscountPercent Decimal? @db.Decimal(12, 5)
+
   roles CompanyRole[]
 
   clientQuotes  Quote[]            @relation("QuoteClient")
@@ -431,9 +446,17 @@ model CompanyRole {
   company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   role      CompanyRoleType
 
+  /// Código do cadastro correspondente no legado (`cdCliente`, `cdParceiro`,
+  /// `cdSeguradora`, `cdTransportadora`, `cdVistoriador`). Fica no papel, e não
+  /// na empresa, porque o legado mantém um cadastro separado por papel — a mesma
+  /// empresa pode ser parceiro #12 **e** seguradora #2. Torna o import idempotente
+  /// e permite correlacionar com o legado depois da migração.
+  legacyCode String?
+
   createdAt DateTime @default(now())
 
   @@id([companyId, role])
+  @@unique([role, legacyCode])
   @@index([role])
   @@map("company_roles")
 }
@@ -442,6 +465,8 @@ model CompanyRole {
 model Employee {
   id            String  @id @default(uuid())
   name          String
+  /// Código do cadastro de Funcionários do legado (`cdFuncionario`).
+  legacyCode    String? @unique
   email         String?
   department    String?
   jobTitle      String?
@@ -474,6 +499,8 @@ enum QuoteKind {
 model Policy {
   id          String    @id @default(uuid())
   number      String
+  /// Código do cadastro de Apólices do legado (`cdApolice`).
+  legacyCode  String?   @unique
   description String?
   kind        QuoteKind
   insurerId   String
@@ -485,6 +512,14 @@ model Policy {
 
   /// Taxas e piso que o legado escondia no texto da descrição
   /// (ex.: "AKAD - 0.10% - PROBEXA") ou não expunha em tela nenhuma.
+  ///
+  /// ⚠️ Desde 03/11/2026 **não são editáveis em tela**: o cliente pediu que o
+  /// cadastro de apólice guarde só os dados do contrato (número, descrição,
+  /// I.S., corretor, tipo, seguradora, situação). A taxa vive em Coberturas e
+  /// em Taxas por cliente. Estes campos seguem no banco porque o cálculo ainda
+  /// os usa como último fallback e a migração das apólices do legado (tarefa
+  /// 51) precisa de um destino para a taxa escondida no nome — decidir lá se
+  /// são removidos ou repovoados.
   baseRateClient           Decimal @default(0) @db.Decimal(12, 5)
   baseRateInsurer          Decimal @default(0) @db.Decimal(12, 5)
   minimumPremium           Decimal @default(0) @db.Decimal(18, 2)
@@ -510,6 +545,8 @@ model Policy {
 model Coverage {
   id          String  @id @default(uuid())
   name        String  @unique
+  /// Código do cadastro de Coberturas do legado (`cdCobertura`).
+  legacyCode  String? @unique
   description String?
   /// Cobertura principal (ICC) x acessória (guerra e greve, prêmio mínimo…).
   accessory   Boolean @default(false)
@@ -712,6 +749,10 @@ model Quote {
   budgetMode    BudgetMode    @default(RATES)
   declaredValue DeclaredValue @default(DECLARED)
 
+  /// Agravo: desconto que a seguradora concede sobre o prêmio dela, em %.
+  /// Congelado na cotação porque o parâmetro global muda com o tempo.
+  payableDiscountPercent Decimal @default(0) @db.Decimal(12, 5)
+
   /// Importação
   clientDiscount  Decimal @default(0) @db.Decimal(12, 5)
   insurerDiscount Decimal @default(0) @db.Decimal(12, 5)
@@ -752,6 +793,9 @@ model Quote {
   insuredAmount     Decimal   @default(0) @db.Decimal(18, 2)
   premiumClient     Decimal   @default(0) @db.Decimal(18, 2)
   premiumInsurer    Decimal   @default(0) @db.Decimal(18, 2)
+  /// Agravo em valor e o que sobra a pagar à seguradora (prêmio − agravo).
+  payableDiscount   Decimal   @default(0) @db.Decimal(18, 2)
+  insurerPayable    Decimal   @default(0) @db.Decimal(18, 2)
   /// Câmbio usado na conversão para BRL no momento do cálculo.
   exchangeRate      Decimal   @default(0) @db.Decimal(18, 6)
   insuredAmountBrl  Decimal   @default(0) @db.Decimal(18, 2)
@@ -926,12 +970,13 @@ model CashRequest {
   currency   Currency @relation(fields: [currencyId], references: [id], onDelete: Restrict)
 
   /// Prêmio devido à seguradora, antes do agravo.
-  premiumInsurer   Decimal @db.Decimal(18, 2)
-  /// Agravo sobre o valor a pagar — 20 % ou 25 %, a confirmar (tarefa 1).
-  surchargePercent Decimal @default(0) @db.Decimal(12, 5)
-  surchargeAmount  Decimal @default(0) @db.Decimal(18, 2)
-  /// Total a pagar: prêmio + agravo.
-  amount           Decimal @db.Decimal(18, 2)
+  premiumInsurer  Decimal @db.Decimal(18, 2)
+  /// Agravo: desconto concedido pela seguradora sobre o prêmio.
+  /// Importação 0,25 %, exportação 0,30 % (confirmado em 03/11/2026).
+  discountPercent Decimal @default(0) @db.Decimal(12, 5)
+  discountAmount  Decimal @default(0) @db.Decimal(18, 2)
+  /// Total a pagar: prêmio − agravo.
+  amount          Decimal @db.Decimal(18, 2)
 
   exchangeRate Decimal @default(0) @db.Decimal(18, 6)
   amountBrl    Decimal @default(0) @db.Decimal(18, 2)
@@ -1136,7 +1181,7 @@ model EndorsementBatchItem {
 // ===========================================================================
 
 /// Parâmetros ajustáveis sem deploy: percentual de acréscimo do extrato,
-/// prazos de TFA e liberação. Ver docs/12-reuniao-cliente.md.
+/// prazos de TFA e de averbação. Ver docs/12-reuniao-cliente.md.
 model SystemSetting {
   key         String  @id
   value       String

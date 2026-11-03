@@ -28,6 +28,8 @@ export interface Company {
   [key: string]: any;
 }
 
+type RoleKey = keyof typeof CompanyRole;
+
 const ROLE_FILTERS = [
   { value: '', label: 'Todas' },
   { value: 'CLIENT', label: 'Clientes' },
@@ -37,12 +39,27 @@ const ROLE_FILTERS = [
   { value: 'SURVEYOR', label: 'Vistoriadores' },
 ];
 
-export default function Companies() {
+/**
+ * Lista o cadastro unificado de empresas.
+ *
+ * `fixedRole` abre a mesma tela restrita a um papel — é como "Seguradoras"
+ * aparece em Cadastros sem virar um cadastro paralelo, que foi justamente o que
+ * duplicou empresas no legado (a Fidcargo existia duas vezes).
+ */
+export default function Companies({
+  fixedRole,
+  title,
+  description,
+}: {
+  fixedRole?: RoleKey;
+  title?: string;
+  description?: string;
+} = {}) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
-  const [role, setRole] = useState('');
+  const [role, setRole] = useState(fixedRole ?? '');
   const [editing, setEditing] = useState<Company | null>(null);
   const [creating, setCreating] = useState(false);
   const [removing, setRemoving] = useState<Company | null>(null);
@@ -152,16 +169,18 @@ export default function Companies() {
     <div>
       <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-[18px] font-semibold tracking-tight text-foreground">Empresas</h2>
+          <h2 className="text-[18px] font-semibold tracking-tight text-foreground">
+            {title ?? 'Empresas'}
+          </h2>
           <p className="mt-1 max-w-2xl text-[13.5px] leading-relaxed text-muted-foreground">
-            Clientes, parceiros, seguradoras, transportadoras e vistoriadores em um cadastro só.
-            Uma mesma empresa pode ter vários papéis — no legado ela precisava ser duplicada.
+            {description ??
+              'Clientes, parceiros, seguradoras, transportadoras e vistoriadores em um cadastro só. Uma mesma empresa pode ter vários papéis — no legado ela precisava ser duplicada.'}
           </p>
         </div>
         {canEdit && (
           <Button size="sm" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
-            Nova empresa
+            {fixedRole ? 'Nova seguradora' : 'Nova empresa'}
           </Button>
         )}
       </header>
@@ -177,6 +196,7 @@ export default function Companies() {
           />
         </div>
 
+        {!fixedRole && (
         <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-surface p-0.5">
           {ROLE_FILTERS.map((option) => (
             <button
@@ -192,6 +212,7 @@ export default function Companies() {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-card">
@@ -228,6 +249,7 @@ export default function Companies() {
       {(creating || editing) && (
         <CompanyDialog
           company={editing}
+          defaultRole={fixedRole}
           onClose={() => {
             setCreating(false);
             setEditing(null);

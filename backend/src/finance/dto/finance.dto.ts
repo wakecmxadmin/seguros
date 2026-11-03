@@ -12,9 +12,12 @@ export class CreateCashRequestDto {
   @IsUUID('4', { message: 'Selecione a averbação definitiva.' })
   endorsementId: string;
 
-  /** Agravo sobre o valor devido à seguradora — 20 % ou 25 %, a confirmar. */
+  /**
+   * Agravo: desconto da seguradora sobre o prêmio. Quando omitido, vem dos
+   * Parâmetros conforme o ramo da cotação (importação/exportação/Fresno).
+   */
   @IsOptional() @IsNumber() @Min(0)
-  surchargePercent?: number;
+  discountPercent?: number;
 
   @IsOptional() @IsDateString()
   chargeDate?: string;

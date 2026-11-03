@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Anchor, Search, Wallet } from 'lucide-react';
+import { AlertTriangle, Anchor, Search, Wallet } from 'lucide-react';
 import { Page } from '@/components/ui/page';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,10 @@ export interface EndorsementRow {
   position: 'PENDING' | 'FOLLOW_UP' | 'SETTLED' | 'CANCELED';
   issuedAt: string;
   berthingDate: string | null;
+  /// Prazos contados da atracação — calculados pelo backend, com os dias em Parâmetros.
+  tfaDueDate: string | null;
+  endorsementDueDate: string | null;
+  overdue: { tfa: boolean; endorsement: boolean } | null;
   blNumber: string | null;
   containerNumber: string | null;
   insuredAmount: string;
@@ -81,6 +85,7 @@ export default function EndorsementList() {
         pendingProvisionals: number;
         provisionalsWithBalance: number;
         finalsInFollowUp: number;
+        overdueTfa: number;
       };
     },
   });
@@ -179,6 +184,36 @@ export default function EndorsementList() {
           <span className="text-muted-foreground">—</span>
         ),
     },
+    {
+      key: 'deadlines',
+      header: 'Prazos',
+      width: '150px',
+      render: (row) => {
+        // Sem atracação não há contagem: os dois prazos partem dela.
+        if (!row.berthingDate) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+
+        const line = (label: string, date: string | null, late: boolean) => (
+          <span
+            className={`tabular flex items-center gap-1 text-[12px] ${
+              late ? 'font-medium text-danger' : 'text-muted-foreground'
+            }`}
+          >
+            {late && <AlertTriangle className="h-3 w-3 shrink-0" />}
+            <span className="w-[42px] shrink-0">{label}</span>
+            {date ? formatDate(date) : '—'}
+          </span>
+        );
+
+        return (
+          <div className="space-y-0.5">
+            {line('TFA', row.tfaDueDate, !!row.overdue?.tfa)}
+            {line('Averb.', row.endorsementDueDate, !!row.overdue?.endorsement)}
+          </div>
+        );
+      },
+    },
   ];
 
   return (
@@ -201,6 +236,15 @@ export default function EndorsementList() {
               </span>
               <span className="text-[12.5px] text-muted-foreground">provisórias pendentes</span>
             </button>
+          )}
+          {summary.overdueTfa > 0 && (
+            <div className="rounded-md border border-danger/40 bg-danger/6 px-3.5 py-2">
+              <span className="tabular flex items-center gap-1.5 text-[18px] font-semibold text-danger">
+                <AlertTriangle className="h-4 w-4" />
+                {summary.overdueTfa}
+              </span>
+              <span className="text-[12.5px] text-muted-foreground">com prazo de TFA vencido</span>
+            </div>
           )}
           {summary.provisionalsWithBalance > 0 && (
             <div className="rounded-md border border-border bg-surface px-3.5 py-2">

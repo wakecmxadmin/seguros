@@ -78,9 +78,13 @@ export class CalculateQuoteDto {
   @IsOptional() @IsNumber() @Min(0)
   exchangeRate?: number;
 
-  /** Ver novas_tarefas.md item 1 — 20% ou 25%, a confirmar. */
+  /**
+   * Agravo (desconto da seguradora) em %. Quando omitido, vale o agravo
+   * próprio do cliente e, na falta dele, o parâmetro do ramo — ver
+   * SettingsService.payableDiscountFor.
+   */
   @IsOptional() @IsNumber() @Min(0)
-  insurerSurchargePercent?: number;
+  payableDiscountPercent?: number;
 
   // --- Coberturas acessórias ---------------------------------------------
   @IsOptional() @IsBoolean() warStrike?: boolean;

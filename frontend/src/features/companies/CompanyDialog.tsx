@@ -15,6 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { Field } from '@/components/ui/field';
 import { api, cleanPayload, errorMessage } from '@/lib/api';
 import { formatDocument } from '@/lib/utils';
+import { formatRate, parseNumber } from '@/lib/format';
 import { CompanyRole } from '@/lib/enums';
 import type { Company } from './Companies';
 
@@ -31,9 +32,12 @@ const ROLE_HINTS: Record<RoleKey, string> = {
 export function CompanyDialog({
   company,
   onClose,
+  defaultRole,
 }: {
   company: Company | null;
   onClose: () => void;
+  /** Papel já marcado ao criar a partir de uma listagem filtrada (ex.: Seguradoras). */
+  defaultRole?: RoleKey;
 }) {
   const isEditing = !!company;
   const queryClient = useQueryClient();
@@ -54,10 +58,14 @@ export function CompanyDialog({
     stateName: company?.stateName ?? '',
     countryName: company?.countryName ?? 'Brasil',
     notes: company?.notes ?? '',
+    payableDiscountPercent:
+      company?.payableDiscountPercent != null ? formatRate(company.payableDiscountPercent) : '',
     active: company?.active ?? true,
   });
 
-  const [roles, setRoles] = useState<RoleKey[]>(company?.roles ?? []);
+  const [roles, setRoles] = useState<RoleKey[]>(
+    company?.roles ?? (defaultRole ? [defaultRole] : []),
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const set = (key: string, value: any) => setValues((v) => ({ ...v, [key]: value }));
@@ -67,6 +75,11 @@ export function CompanyDialog({
       const payload = cleanPayload({
         ...values,
         document: values.document.replace(/\D/g, '') || undefined,
+        // Vazio é "sem exceção": volta a valer o agravo do ramo. Precisa ir
+        // como null explícito, senão o backend mantém o valor anterior.
+        payableDiscountPercent: values.payableDiscountPercent.trim()
+          ? parseNumber(values.payableDiscountPercent)
+          : null,
         roles,
       });
       return isEditing
@@ -271,7 +284,29 @@ export function CompanyDialog({
                 />
               </Field>
 
-              <Field label="Observações" htmlFor="notes" className="sm:col-span-6">
+              {roles.includes('CLIENT') && (
+                <Field
+                  label="Agravo próprio (%)"
+                  htmlFor="payableDiscountPercent"
+                  className="sm:col-span-2"
+                  hint="Deixe vazio para usar o agravo do ramo."
+                >
+                  <Input
+                    id="payableDiscountPercent"
+                    className="tabular text-right"
+                    inputMode="decimal"
+                    placeholder="padrão do ramo"
+                    value={values.payableDiscountPercent}
+                    onChange={(e) => set('payableDiscountPercent', e.target.value)}
+                  />
+                </Field>
+              )}
+
+              <Field
+                label="Observações"
+                htmlFor="notes"
+                className={roles.includes('CLIENT') ? 'sm:col-span-4' : 'sm:col-span-6'}
+              >
                 <Input
                   id="notes"
                   value={values.notes}

@@ -18,7 +18,7 @@ import {
   DialogHeader,
 } from '@/components/ui/dialog';
 import { api, errorMessage } from '@/lib/api';
-import { formatMoney, formatRate, parseNumber } from '@/lib/format';
+import { formatMoney, parseNumber } from '@/lib/format';
 import { QuoteKind } from '@/lib/enums';
 import { useAuth } from '@/stores/auth';
 
@@ -30,9 +30,7 @@ interface Policy {
   insurerId: string;
   insurer: { id: string; legalName: string; tradeName: string | null };
   insuredLimit: string;
-  baseRateClient: string;
-  baseRateInsurer: string;
-  minimumPremium: string;
+  brokerCode: string | null;
   validFrom: string | null;
   validTo: string | null;
   active: boolean;
@@ -82,26 +80,22 @@ export default function Policies() {
     },
     {
       key: 'kind',
-      header: 'Ramo',
+      header: 'Tipo',
       width: '120px',
       render: (row) => <Badge variant="neutral">{QuoteKind[row.kind]}</Badge>,
     },
     {
-      key: 'rates',
-      header: 'Taxa cliente / seguradora',
+      key: 'insuredLimit',
+      header: 'Importância segurada',
       numeric: true,
-      render: (row) => (
-        <span>
-          {formatRate(row.baseRateClient)} <span className="text-muted-foreground">/</span>{' '}
-          {formatRate(row.baseRateInsurer)}
-        </span>
-      ),
+      render: (row) => formatMoney(row.insuredLimit),
     },
     {
-      key: 'minimumPremium',
-      header: 'Prêmio mínimo',
-      numeric: true,
-      render: (row) => formatMoney(row.minimumPremium),
+      key: 'brokerCode',
+      header: 'Corretor',
+      width: '140px',
+      render: (row) =>
+        row.brokerCode || <span className="text-muted-foreground">—</span>,
     },
     {
       key: 'active',
@@ -139,8 +133,8 @@ export default function Policies() {
         <div>
           <h2 className="text-[18px] font-semibold tracking-tight text-foreground">Apólices</h2>
           <p className="mt-1 max-w-2xl text-[13.5px] leading-relaxed text-muted-foreground">
-            Contratos com as seguradoras. Taxa e prêmio mínimo agora são campos próprios — no legado
-            ficavam escondidos no texto do nome da apólice.
+            Contratos com as seguradoras. As taxas ficam em Taxas por cliente ou são definidas na
+            própria cotação.
           </p>
         </div>
         {canEdit && (
@@ -242,26 +236,13 @@ function PolicyDialog({
     },
   });
 
-  const { data: currencies } = useQuery({
-    queryKey: ['catalog-options', 'currencies'],
-    queryFn: async () => {
-      const { data } = await api.get('/catalog/currencies/options');
-      return data as Array<{ id: string; label: string }>;
-    },
-  });
-
   const [values, setValues] = useState({
     number: policy?.number ?? '',
     description: policy?.description ?? '',
     kind: policy?.kind ?? 'IMPORT',
     insurerId: policy?.insurerId ?? '',
     insuredLimit: policy ? formatMoney(policy.insuredLimit) : '0,00',
-    baseRateClient: policy ? formatRate(policy.baseRateClient) : '0,00000',
-    baseRateInsurer: policy ? formatRate(policy.baseRateInsurer) : '0,00000',
-    minimumPremium: policy ? formatMoney(policy.minimumPremium) : '0,00',
-    minimumPremiumCurrencyId: (policy as any)?.minimumPremiumCurrencyId ?? '',
-    validFrom: policy?.validFrom?.slice(0, 10) ?? '',
-    validTo: policy?.validTo?.slice(0, 10) ?? '',
+    brokerCode: policy?.brokerCode ?? '',
     active: policy?.active ?? true,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -276,12 +257,7 @@ function PolicyDialog({
         kind: values.kind,
         insurerId: values.insurerId,
         insuredLimit: parseNumber(values.insuredLimit),
-        baseRateClient: parseNumber(values.baseRateClient),
-        baseRateInsurer: parseNumber(values.baseRateInsurer),
-        minimumPremium: parseNumber(values.minimumPremium),
-        minimumPremiumCurrencyId: values.minimumPremiumCurrencyId || undefined,
-        validFrom: values.validFrom || undefined,
-        validTo: values.validTo || undefined,
+        brokerCode: values.brokerCode.trim() || null,
         active: values.active,
       };
       return isEditing
@@ -311,7 +287,7 @@ function PolicyDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader
           title={isEditing ? 'Editar apólice' : 'Nova apólice'}
-          description="A taxa base e o prêmio mínimo definidos aqui alimentam o cálculo da cotação."
+          description="Dados do contrato com a seguradora. As taxas são definidas em Taxas por cliente ou na cotação."
         />
 
         <form onSubmit={submit} noValidate className="contents">
@@ -334,7 +310,7 @@ function PolicyDialog({
                 />
               </Field>
 
-              <Field label="Ramo" htmlFor="kind" required className="sm:col-span-3">
+              <Field label="Tipo de apólice" htmlFor="kind" required className="sm:col-span-3">
                 <Select id="kind" value={values.kind} onChange={(e) => set('kind', e.target.value)}>
                   <option value="IMPORT">Importação</option>
                   <option value="EXPORT">Exportação</option>
@@ -376,73 +352,13 @@ function PolicyDialog({
                   onChange={(e) => set('description', e.target.value)}
                 />
               </Field>
-            </div>
 
-            <p className="mb-3 mt-6 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Tarifação
-            </p>
-            <div className="grid gap-4 sm:grid-cols-6">
               <Field
-                label="Taxa base — cliente (%)"
-                htmlFor="baseRateClient"
-                hint="O que é cobrado do segurado."
+                label="Importância segurada"
+                htmlFor="insuredLimit"
+                hint="Limite máximo coberto pela apólice."
                 className="sm:col-span-3"
               >
-                <Input
-                  id="baseRateClient"
-                  className="tabular text-right"
-                  inputMode="decimal"
-                  value={values.baseRateClient}
-                  onChange={(e) => set('baseRateClient', e.target.value)}
-                />
-              </Field>
-
-              <Field
-                label="Taxa base — seguradora (%)"
-                htmlFor="baseRateInsurer"
-                hint="O custo de repasse. A diferença é a margem."
-                className="sm:col-span-3"
-              >
-                <Input
-                  id="baseRateInsurer"
-                  className="tabular text-right"
-                  inputMode="decimal"
-                  value={values.baseRateInsurer}
-                  onChange={(e) => set('baseRateInsurer', e.target.value)}
-                />
-              </Field>
-
-              <Field
-                label="Prêmio mínimo"
-                htmlFor="minimumPremium"
-                hint="Piso aplicado ao prêmio do cliente."
-                className="sm:col-span-2"
-              >
-                <Input
-                  id="minimumPremium"
-                  className="tabular text-right"
-                  inputMode="decimal"
-                  value={values.minimumPremium}
-                  onChange={(e) => set('minimumPremium', e.target.value)}
-                />
-              </Field>
-
-              <Field label="Moeda do prêmio mínimo" htmlFor="minimumPremiumCurrencyId" className="sm:col-span-2">
-                <Select
-                  id="minimumPremiumCurrencyId"
-                  value={values.minimumPremiumCurrencyId}
-                  onChange={(e) => set('minimumPremiumCurrencyId', e.target.value)}
-                >
-                  <option value="">Selecione…</option>
-                  {currencies?.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-
-              <Field label="Limite de I.S." htmlFor="insuredLimit" className="sm:col-span-2">
                 <Input
                   id="insuredLimit"
                   className="tabular text-right"
@@ -451,26 +367,13 @@ function PolicyDialog({
                   onChange={(e) => set('insuredLimit', e.target.value)}
                 />
               </Field>
-            </div>
 
-            <p className="mb-3 mt-6 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Vigência
-            </p>
-            <div className="grid gap-4 sm:grid-cols-6">
-              <Field label="Início" htmlFor="validFrom" className="sm:col-span-2">
+              <Field label="Corretor" htmlFor="brokerCode" className="sm:col-span-3">
                 <Input
-                  id="validFrom"
-                  type="date"
-                  value={values.validFrom}
-                  onChange={(e) => set('validFrom', e.target.value)}
-                />
-              </Field>
-              <Field label="Fim" htmlFor="validTo" className="sm:col-span-2">
-                <Input
-                  id="validTo"
-                  type="date"
-                  value={values.validTo}
-                  onChange={(e) => set('validTo', e.target.value)}
+                  id="brokerCode"
+                  placeholder="Código ou nome do corretor"
+                  value={values.brokerCode}
+                  onChange={(e) => set('brokerCode', e.target.value)}
                 />
               </Field>
             </div>

@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { FxService } from '../fx/fx.service';
+import { SettingsService } from '../settings/settings.service';
 import type { RequestContext } from '../auth/auth.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import {
@@ -71,6 +72,7 @@ export class FinanceService {
     private prisma: PrismaService,
     private audit: AuditService,
     private fx: FxService,
+    private settings: SettingsService,
   ) {}
 
   private scopeFor(user: AuthenticatedUser): Prisma.QuoteWhereInput {
@@ -164,6 +166,7 @@ export class FinanceService {
             id: true,
             number: true,
             kind: true,
+            clientId: true,
             client: { select: { id: true, legalName: true, tradeName: true } },
             insurer: { select: { id: true, legalName: true, tradeName: true } },
           },
@@ -177,8 +180,9 @@ export class FinanceService {
   }
 
   /**
-   * Cria o numerário de uma definitiva. O agravo entra aqui — é o acréscimo
-   * sobre o valor devido à seguradora (ver docs/12-reuniao-cliente.md, item 6).
+   * Cria o numerário de uma definitiva. O agravo entra aqui — é o desconto
+   * que a seguradora concede sobre o prêmio, abatido do valor a pagar.
+   * Confirmado pelo cliente em 03/11/2026: importação 0,25 %, exportação 0,30 %.
    */
   async createCashRequest(
     dto: CreateCashRequestDto,
@@ -187,7 +191,10 @@ export class FinanceService {
   ) {
     const endorsement = await this.prisma.endorsement.findFirst({
       where: { id: dto.endorsementId, quote: this.scopeFor(user) },
-      include: { cashRequests: true },
+      include: {
+        cashRequests: true,
+        quote: { select: { kind: true, client: { select: { payableDiscountPercent: true } } } },
+      },
     });
     if (!endorsement) throw new NotFoundException('Averbação não encontrada.');
 
@@ -208,9 +215,14 @@ export class FinanceService {
     }
 
     const premiumInsurer = Number(endorsement.premiumInsurer);
-    const surchargePercent = dto.surchargePercent ?? 0;
-    const surchargeAmount = round((premiumInsurer * surchargePercent) / 100);
-    const amount = round(premiumInsurer + surchargeAmount);
+    const discountPercent =
+      dto.discountPercent ??
+      (await this.settings.payableDiscountFor(
+        endorsement.quote.kind,
+        endorsement.quote.client?.payableDiscountPercent ?? null,
+      ));
+    const discountAmount = round((premiumInsurer * discountPercent) / 100);
+    const amount = round(Math.max(premiumInsurer - discountAmount, 0));
 
     let exchangeRate = Number(endorsement.exchangeRate);
     try {
@@ -226,8 +238,8 @@ export class FinanceService {
         version: endorsement.cashRequests.length + 1,
         currencyId: endorsement.currencyId,
         premiumInsurer,
-        surchargePercent,
-        surchargeAmount,
+        discountPercent,
+        discountAmount,
         amount,
         exchangeRate,
         amountBrl: round(amount * exchangeRate),
@@ -243,7 +255,7 @@ export class FinanceService {
       action: 'cash_request_created',
       entity: 'CashRequest',
       entityId: created.id,
-      after: { endorsement: endorsement.number, premiumInsurer, surchargePercent, amount },
+      after: { endorsement: endorsement.number, premiumInsurer, discountPercent, amount },
       ...ctx,
     });
 

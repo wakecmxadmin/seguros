@@ -247,6 +247,9 @@ export class CompaniesService {
       stateName: dto.stateName,
       countryName: dto.countryName,
       notes: dto.notes,
+      // null limpa a exceção e devolve o cliente ao agravo do ramo.
+      payableDiscountPercent:
+        dto.payableDiscountPercent === undefined ? undefined : dto.payableDiscountPercent,
       active: dto.active,
     };
   }

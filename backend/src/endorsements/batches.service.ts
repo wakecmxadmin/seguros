@@ -261,6 +261,11 @@ export class BatchesService {
    *
    * A dor relatada na reunião é enviar o valor original sem o acréscimo, então
    * o extrato mostra as duas colunas lado a lado e o total já acrescido.
+   *
+   * Este acréscimo **não** é o agravo: o cliente confirmou em 03/11/2026 que o
+   * agravo é desconto concedido pela seguradora sobre o prêmio (ver
+   * SettingsService). Aqui é acréscimo cobrado do cliente — sentidos opostos,
+   * parâmetros separados.
    */
   async monthlyStatement(period: string, clientId?: string) {
     const { from, to } = periodRange(period);

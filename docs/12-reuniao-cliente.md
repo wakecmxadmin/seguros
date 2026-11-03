@@ -105,12 +105,13 @@ Isso conversa com a oportunidade "Anexos no processo" já listada em `docs/10`.
 Existe um **acréscimo sobre o valor comprado** que precisa estar no extrato. Enviar o valor original
 sem o acréscimo é um erro que custa dinheiro.
 
-> **Hipótese a confirmar:** este acréscimo é o mesmo **"agravo"** que aparece na Planilha Produção do
-> legado como "A Pagar Seguradora AGRAVO 25%" — e cujo campo no banco se chama `vlDolarAPagarAgravo20`
-> (20%). Se for o mesmo conceito, a tarefa 1 (definir 20% ou 25%) e este item são a mesma pergunta.
-> **Vale confirmar diretamente com o cliente.**
+> **Hipótese refutada em 03/11/2026.** Este acréscimo **não** é o "agravo" da Planilha Produção.
+> O cliente confirmou que o agravo é o **desconto** que a seguradora concede sobre o prêmio
+> (importação 0,25 %, importação Fresno 0,25 %, exportação 0,30 %) — sentido oposto a este
+> acréscimo, que é cobrado do cliente. São parâmetros distintos na tela de Parâmetros:
+> `insurance.payable_discount_import_percent` / `_export_percent` e `finance.surcharge_percent`.
 
-O motor de cálculo já tem `insurerSurchargePercent` parametrizado justamente por isso.
+O percentual deste acréscimo (hoje 25 % por default) **segue sem confirmação**.
 
 ## 7. Extrato de comissão
 
@@ -134,10 +135,17 @@ Implica registrar a **data de atracação** no processo e bloquear a emissão an
 
 Dois prazos com contagem a partir de eventos:
 - **15 dias** — relacionado a atracação / TFA (liberação de avarias).
-- **10 dias** — prazo de liberação.
+- **15 dias** — **prazo para averbação** (era "prazo de liberação", 10 dias).
 
-> Não ficou claro na anotação qual evento inicia cada contagem, nem o que acontece ao vencer
-> (alerta? bloqueio? multa?). **Precisa de detalhamento.**
+**Atualizado em 03/11/2026:** o cliente corrigiu o nome e a regra do segundo prazo. O que era
+"Prazo para Liberação" passa a ser **"Prazo para Averbação"**: a **notificação à Cia (seguradora)
+precisa ocorrer em até 15 dias da chegada/atracação** da carga. O parâmetro
+`deadline.release_days` foi renomeado para `deadline.endorsement_days` e o default passou de
+10 para 15 dias.
+
+> Fica em aberto se o prazo de **TFA** (também 15 dias da atracação) é um prazo distinto ou se a
+> anotação original já se referia a este mesmo prazo de averbação. Também segue sem definição o
+> que acontece ao vencer (alerta? bloqueio? multa?) — hoje o sistema apenas sinaliza o vencimento.
 
 Isso conecta com o campo `pendingLimitDate` já implementado e com as **10.279 pendências provisórias**
 acumuladas no legado (`docs/10`, item 2) — provavelmente são justamente esses prazos estourando.
@@ -152,5 +160,7 @@ acumuladas no legado (`docs/10`, item 2) — provavelmente são justamente esses
 3. **SIGRA**: tem API? Quem mantém? Que dados exatamente precisam vir de lá?
 4. **Averbação mensal**: qual o layout do arquivo enviado à seguradora? Varia por seguradora?
 5. **Atracação**: de onde vem a data — SIGRA, digitação manual, ou ambos?
-6. **Prazos de 15 e 10 dias**: contam a partir de quê? O que acontece ao vencer?
+6. ~~**Prazos de 15 e 10 dias**: contam a partir de quê?~~ *(parcialmente respondido em 03/11/2026:
+   o prazo para averbação é de 15 dias contados da chegada/atracação.)* Falta definir: o prazo de
+   **TFA** é o mesmo prazo ou outro? E o que acontece ao vencer?
 7. **TFA**: é um documento, um processo, ou um tipo de liberação? Como se relaciona com sinistro?

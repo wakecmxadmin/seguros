@@ -15,6 +15,7 @@ import {
   emptyQuote,
   toPayload,
   useQuoteCalculation,
+  usePayableDiscountDefault,
   type QuoteFormValues,
 } from './useQuoteForm';
 import { StepIdentification } from './steps/StepIdentification';
@@ -144,8 +145,14 @@ export default function QuoteForm() {
       insurerBaseRate: formatRate(cost?.baseRateInsurer ?? 0),
       insurerExtraRate: formatRate(cost?.extraRateInsurer ?? 0),
       insurerWarRate: formatRate(cost?.warRateInsurer ?? 0),
+      // Ao reabrir, vale o agravo congelado na cotação — não o parâmetro de
+      // hoje, que pode ter mudado desde a emissão.
+      payableDiscountPercent: formatRate(existing.payableDiscountPercent ?? 0),
     });
   }, [existing]);
+
+  // Só na criação: preenche o agravo conforme o ramo, a partir dos Parâmetros.
+  usePayableDiscountDefault(values, set, !isEditing);
 
   const { result, calculating } = useQuoteCalculation(values);
 

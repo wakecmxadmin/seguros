@@ -14,6 +14,7 @@ import type { AuthenticatedUser } from '../auth/decorators/current-user.decorato
 import { calculateQuote, type CalculationInput } from './quote-calculator';
 import { mapSigraToQuoteDraft } from './sigra-draft-mapper';
 import { resolveClientRate } from '../policies/rate-resolver';
+import { SettingsService } from '../settings/settings.service';
 import { CalculateQuoteDto, ListQuotesDto, PreviewQuoteDto, SaveQuoteDto } from './dto/quotes.dto';
 
 const listSelect = {
@@ -62,6 +63,7 @@ export class QuotesService {
     private audit: AuditService,
     private fx: FxService,
     private sigra: SigraProcessService,
+    private settings: SettingsService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -258,8 +260,28 @@ export class QuotesService {
       partnerPercent: dto.partnerPercent ?? 0,
       brokerPercent: dto.brokerPercent ?? 0,
       salespersonPercent: dto.salespersonPercent ?? 0,
-      insurerSurchargePercent: dto.insurerSurchargePercent ?? 0,
+      payableDiscountPercent:
+        dto.payableDiscountPercent ?? (await this.resolvePayableDiscount(dto.kind, dto.clientId)),
     };
+  }
+
+  /**
+   * Agravo efetivo do processo: o negociado com o cliente, quando houver, e na
+   * falta dele o parâmetro do ramo.
+   *
+   * O legado tinha um slot fixo "Importação Fresno" porque não sabia
+   * representar exceção por cliente — era o agravo da FRESNOMAQ. Aqui a
+   * exceção mora no cadastro do cliente e vale para qualquer um.
+   */
+  async resolvePayableDiscount(kind: QuoteKind, clientId?: string | null): Promise<number> {
+    const client = clientId
+      ? await this.prisma.company.findUnique({
+          where: { id: clientId },
+          select: { payableDiscountPercent: true },
+        })
+      : null;
+
+    return this.settings.payableDiscountFor(kind, client?.payableDiscountPercent ?? null);
   }
 
   // -------------------------------------------------------------------------
@@ -279,6 +301,9 @@ export class QuotesService {
         insuredAmount: result.insuredAmount,
         premiumClient: result.premiumClient,
         premiumInsurer: result.premiumInsurer,
+        payableDiscountPercent: input.payableDiscountPercent ?? 0,
+        payableDiscount: result.payableDiscount,
+        insurerPayable: result.insurerPayable,
         exchangeRate: result.exchangeRate,
         insuredAmountBrl: result.insuredAmountBrl,
         premiumClientBrl: result.premiumClientBrl,
@@ -326,6 +351,9 @@ export class QuotesService {
         insuredAmount: result.insuredAmount,
         premiumClient: result.premiumClient,
         premiumInsurer: result.premiumInsurer,
+        payableDiscountPercent: input.payableDiscountPercent ?? 0,
+        payableDiscount: result.payableDiscount,
+        insurerPayable: result.insurerPayable,
         exchangeRate: result.exchangeRate,
         insuredAmountBrl: result.insuredAmountBrl,
         premiumClientBrl: result.premiumClientBrl,

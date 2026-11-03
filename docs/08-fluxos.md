@@ -114,7 +114,9 @@ Colunas: `Processo` · `Parceiro` · `Definitiva` · `Referência` · `RME` · `
 `Tx. Câmbio Seguradora` · `Tx.Rec.` · `Prêmio.Cli USD` · `Prêmio.Cli R$` · `A Pagar Seguradora USD` ·
 **`A Pagar Seguradora AGRAVO 25% USD`** · `A Pagar R$` · `Dif USD` · `Dif R$` · **`% de Rentabilidade`**
 
-> Regras de negócio novas reveladas aqui: existe um **agravo de 25 %** sobre o valor a pagar à seguradora,
+> Regras de negócio novas reveladas aqui: existe um **agravo** sobre o valor a pagar à seguradora
+> — confirmado em 03/11/2026 como **desconto** (importação 0,25 %, exportação 0,30 %), apesar do
+> "25%" no título da coluna —
 > e a **rentabilidade por processo** é calculada como a diferença entre o prêmio do cliente e o custo da
 > seguradora. Exportações: PDF e Excel (`gerarExcelRelatorioProducao`).
 

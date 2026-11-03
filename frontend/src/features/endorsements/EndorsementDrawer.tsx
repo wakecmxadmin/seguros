@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Anchor, FilePlus2, History, Ship } from 'lucide-react';
+import { AlertTriangle, Anchor, FilePlus2, History, Ship } from 'lucide-react';
 import {
   Dialog,
   DialogBody,
@@ -125,6 +125,20 @@ export function EndorsementDrawer({ id, onClose }: EndorsementDrawerProps) {
                     icon={<Ship className="h-3.5 w-3.5" />}
                   />
                   <Row label="Seguradora" value={data.quote.insurer?.tradeName || data.quote.insurer?.legalName || '—'} />
+                  {data.berthingDate && (
+                    <>
+                      <Row
+                        label="Prazo de TFA"
+                        value={data.tfaDueDate ? formatDate(data.tfaDueDate) : '—'}
+                        danger={!!data.overdue?.tfa}
+                      />
+                      <Row
+                        label="Prazo de averbação"
+                        value={data.endorsementDueDate ? formatDate(data.endorsementDueDate) : '—'}
+                        danger={!!data.overdue?.endorsement}
+                      />
+                    </>
+                  )}
                 </dl>
 
                 {/* Definitivas emitidas */}
@@ -287,15 +301,23 @@ function Row({
   label,
   value,
   icon,
+  danger,
 }: {
   label: string;
   value: string;
   icon?: React.ReactNode;
+  /** Destaca prazos vencidos — o operador precisa enxergar sem procurar. */
+  danger?: boolean;
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-border py-1.5 last:border-0">
       <dt className="text-[13px] text-muted-foreground">{label}</dt>
-      <dd className="flex items-center gap-1.5 text-[13.5px] text-foreground">
+      <dd
+        className={`flex items-center gap-1.5 text-[13.5px] ${
+          danger ? 'font-medium text-danger' : 'text-foreground'
+        }`}
+      >
+        {danger && <AlertTriangle className="h-3.5 w-3.5" />}
         {icon}
         {value}
       </dd>

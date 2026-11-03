@@ -15,6 +15,7 @@ interface Setting {
   label: string;
   description: string;
   unit: string;
+  group: string;
   value: string;
   default: string;
   isDefault: boolean;
@@ -54,6 +55,13 @@ export default function Settings() {
 
   const canEdit = can('rate:update');
 
+  // Seis parâmetros em lista corrida obrigam a ler todos para achar um.
+  // Agrupados por contexto (agravo, financeiro, prazos) a leitura é direta.
+  const groups = (data ?? []).reduce<Record<string, Setting[]>>((acc, setting) => {
+    (acc[setting.group] ??= []).push(setting);
+    return acc;
+  }, {});
+
   return (
     <Page
       title="Parâmetros"
@@ -65,75 +73,84 @@ export default function Settings() {
         ) : isError ? (
           <LoadError message={errorMessage(error)} />
         ) : (
-          <ul className="divide-y divide-border">
-            {data?.map((setting) => {
-              const draft = drafts[setting.key];
-              const isDirty = draft !== undefined && draft !== setting.value;
+          <div className="divide-y divide-border">
+            {Object.entries(groups).map(([group, settings]) => (
+              <section key={group}>
+                <h2 className="bg-surface-alt/60 px-5 py-2 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {group}
+                </h2>
+                <ul className="divide-y divide-border">
+                  {settings.map((setting) => {
+                    const draft = drafts[setting.key];
+                    const isDirty = draft !== undefined && draft !== setting.value;
 
-              return (
-                <li key={setting.key} className="px-5 py-4">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <p className="flex flex-wrap items-center gap-2 text-[14px] font-medium text-foreground">
-                        {setting.label}
-                        {setting.isDefault && <Badge variant="neutral">padrão</Badge>}
-                      </p>
-                      <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-                        {setting.description}
-                      </p>
-                      <code className="mt-1 block text-[11.5px] text-muted-foreground/60">
-                        {setting.key}
-                      </code>
-                    </div>
+                    return (
+                      <li key={setting.key} className="px-5 py-4">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <p className="flex flex-wrap items-center gap-2 text-[14px] font-medium text-foreground">
+                              {setting.label}
+                              {setting.isDefault && <Badge variant="neutral">padrão</Badge>}
+                            </p>
+                            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+                              {setting.description}
+                            </p>
+                            <code className="mt-1 block text-[11.5px] text-muted-foreground/60">
+                              {setting.key}
+                            </code>
+                          </div>
 
-                    <div className="flex items-center gap-2">
-                      <div className="relative">
-                        <Input
-                          className="tabular w-28 pr-12 text-right"
-                          inputMode="decimal"
-                          disabled={!canEdit}
-                          value={draft ?? setting.value}
-                          onChange={(e) =>
-                            setDrafts((c) => ({ ...c, [setting.key]: e.target.value }))
-                          }
-                        />
-                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground">
-                          {setting.unit}
-                        </span>
-                      </div>
+                          <div className="flex items-center gap-2">
+                            <div className="relative">
+                              <Input
+                                className="tabular w-28 pr-12 text-right"
+                                inputMode="decimal"
+                                disabled={!canEdit}
+                                value={draft ?? setting.value}
+                                onChange={(e) =>
+                                  setDrafts((c) => ({ ...c, [setting.key]: e.target.value }))
+                                }
+                              />
+                              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground">
+                                {setting.unit}
+                              </span>
+                            </div>
 
-                      {isDirty && (
-                        <>
-                          <Button
-                            size="icon"
-                            title="Salvar"
-                            loading={save.isPending}
-                            onClick={() => save.mutate({ key: setting.key, value: draft })}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Descartar"
-                            onClick={() =>
-                              setDrafts((c) => {
-                                const next = { ...c };
-                                delete next[setting.key];
-                                return next;
-                              })
-                            }
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                            {isDirty && (
+                              <>
+                                <Button
+                                  size="icon"
+                                  title="Salvar"
+                                  loading={save.isPending}
+                                  onClick={() => save.mutate({ key: setting.key, value: draft })}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Descartar"
+                                  onClick={() =>
+                                    setDrafts((c) => {
+                                      const next = { ...c };
+                                      delete next[setting.key];
+                                      return next;
+                                    })
+                                  }
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         )}
       </div>
     </Page>

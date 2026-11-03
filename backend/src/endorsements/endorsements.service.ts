@@ -144,36 +144,37 @@ export class EndorsementsService {
   }
 
   /**
-   * Prazos contados a partir da atracação (docs/12-reuniao-cliente.md):
-   * TFA/liberação de avarias e liberação. Os dias são configuráveis porque a
-   * regra exata ainda precisa de confirmação.
+   * Prazos contados a partir da chegada/atracação (docs/12-reuniao-cliente.md):
+   * TFA (liberação de avarias) e averbação — a notificação à seguradora (Cia)
+   * precisa ocorrer dentro do prazo de averbação. Os dias são configuráveis em
+   * Parâmetros.
    */
   private async withDeadlines<T extends { berthingDate: Date | null }>(items: T[]) {
-    const [tfaDays, releaseDays] = await Promise.all([
+    const [tfaDays, endorsementDays] = await Promise.all([
       this.settings.number('deadline.tfa_days'),
-      this.settings.number('deadline.release_days'),
+      this.settings.number('deadline.endorsement_days'),
     ]);
 
     const today = new Date();
 
     return items.map((item) => {
       if (!item.berthingDate) {
-        return { ...item, tfaDueDate: null, releaseDueDate: null, overdue: null };
+        return { ...item, tfaDueDate: null, endorsementDueDate: null, overdue: null };
       }
 
       const tfaDueDate = new Date(item.berthingDate);
       tfaDueDate.setDate(tfaDueDate.getDate() + tfaDays);
 
-      const releaseDueDate = new Date(item.berthingDate);
-      releaseDueDate.setDate(releaseDueDate.getDate() + releaseDays);
+      const endorsementDueDate = new Date(item.berthingDate);
+      endorsementDueDate.setDate(endorsementDueDate.getDate() + endorsementDays);
 
       return {
         ...item,
         tfaDueDate,
-        releaseDueDate,
+        endorsementDueDate,
         overdue: {
           tfa: tfaDueDate < today,
-          release: releaseDueDate < today,
+          endorsement: endorsementDueDate < today,
         },
       };
     });

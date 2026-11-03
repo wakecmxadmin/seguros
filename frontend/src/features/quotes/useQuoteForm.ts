@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { parseNumber } from '@/lib/format';
+import { formatRate, parseNumber } from '@/lib/format';
 
 export interface QuoteFormValues {
   kind: 'IMPORT' | 'EXPORT';
@@ -91,7 +92,8 @@ export interface QuoteFormValues {
   insurerExtraRate: string;
   insurerWarRate: string;
   minimumPremium: string;
-  insurerSurchargePercent: string;
+  /** Agravo: desconto da seguradora sobre o prêmio, em %. */
+  payableDiscountPercent: string;
 }
 
 export interface CalculationLine {
@@ -111,7 +113,7 @@ export interface CalculationResult {
   grossMargin: number;
   marginPercent: number;
   insurerPayable: number;
-  insurerSurcharge: number;
+  payableDiscount: number;
   commissions: { partner: number; broker: number; salesperson: number; total: number };
   exchangeRate: number;
   insuredAmountBrl: number;
@@ -197,7 +199,9 @@ export function emptyQuote(kind: 'IMPORT' | 'EXPORT'): QuoteFormValues {
     insurerExtraRate: '0,00000',
     insurerWarRate: '0,00000',
     minimumPremium: '0,00',
-    insurerSurchargePercent: '0,00',
+    // O agravo é preenchido a partir dos Parâmetros assim que eles carregam
+    // (ver useQuoteForm → usePayableDiscountDefault).
+    payableDiscountPercent: '0,00',
   };
 }
 
@@ -290,7 +294,7 @@ export function toPayload(values: QuoteFormValues) {
     insurerExtraRate: n(values.insurerExtraRate),
     insurerWarRate: n(values.insurerWarRate),
     minimumPremium: n(values.minimumPremium),
-    insurerSurchargePercent: n(values.insurerSurchargePercent),
+    payableDiscountPercent: n(values.payableDiscountPercent),
   };
 }
 
@@ -313,7 +317,7 @@ export function useQuoteCalculation(values: QuoteFormValues) {
         values.expensePercent, values.profitPercent,
         values.clientBaseRate, values.clientExtraRate, values.clientWarRate,
         values.insurerBaseRate, values.insurerExtraRate, values.insurerWarRate,
-        values.minimumPremium, values.vesselAdditionalPercent, values.insurerSurchargePercent,
+        values.minimumPremium, values.vesselAdditionalPercent, values.payableDiscountPercent,
         values.warStrike, values.expensesCovered, values.expectedProfitCovered,
         values.minimumPremiumApplied,
         values.partnerPercent, values.brokerPercent, values.salespersonPercent,
@@ -345,4 +349,38 @@ export function useQuoteCalculation(values: QuoteFormValues) {
   }, [run]);
 
   return { result, calculating };
+}
+
+/**
+ * Agravo default do processo.
+ *
+ * A regra (agravo do cliente, senão o do ramo) vive no backend — aqui só
+ * perguntamos qual é, para o operador ver o número antes de salvar e poder
+ * sobrescrever. Duplicar a regra no frontend garantiria divergência.
+ */
+export function usePayableDiscountDefault(
+  values: QuoteFormValues,
+  set: <K extends keyof QuoteFormValues>(key: K, value: QuoteFormValues[K]) => void,
+  enabled: boolean,
+) {
+  const { data } = useQuery({
+    queryKey: ['payable-discount', values.kind, values.clientId],
+    queryFn: async () => {
+      const { data } = await api.get('/quotes/payable-discount', {
+        params: { kind: values.kind, clientId: values.clientId ?? undefined },
+      });
+      return data as { percent: number };
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const percent = data?.percent;
+
+  useEffect(() => {
+    if (!enabled || percent === undefined) return;
+    set('payableDiscountPercent', formatRate(percent));
+    // Reage à troca de ramo/cliente e à resposta do servidor, não a cada tecla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, percent]);
 }

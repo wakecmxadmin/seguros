@@ -1,7 +1,7 @@
 import { CompanyRoleType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
-  IsArray, IsBoolean, IsEmail, IsEnum, IsInt, IsOptional, IsString, Min, MinLength,
+  IsArray, IsBoolean, IsEmail, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min, MinLength,
 } from 'class-validator';
 import { EmptyToUndefined } from '../../common/transforms';
 
@@ -50,6 +50,13 @@ export class CreateCompanyDto {
 
   @IsOptional() @IsString()
   notes?: string;
+
+  /**
+   * Agravo negociado com este cliente, em %. Vazio significa "usa o parâmetro
+   * do ramo" — não é o mesmo que zero, que seria "sem agravo nenhum".
+   */
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0)
+  payableDiscountPercent?: number | null;
 
   @IsOptional() @IsBoolean()
   active?: boolean;

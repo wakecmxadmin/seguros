@@ -49,8 +49,21 @@ existe `vlPremioMinimoCliente` e a flag `flCalculadoMinimo`, mas nenhum equivale
 `vlTaxaAdicionalNavioPremio` · `vlClassificacaoNavio` · **`vlDolarAPagarAgravo20`**
 
 > Note: o campo é `vlDolarAPagarAgravo20`, mas a **Planilha Produção** exibe a coluna
-> "A Pagar Seguradora **AGRAVO 25%** USD" — o percentual do agravo mudou sem renomear o campo.
-> Confirmar a regra vigente com o cliente antes de implementar.
+> "A Pagar Seguradora **AGRAVO 25%** USD" — os números no nome do campo e da coluna não
+> correspondem ao percentual real.
+>
+> **Confirmado pelo cliente em 03/11/2026**: o agravo é o
+> **desconto que a seguradora concede sobre o prêmio**, reduzindo o que a corretora paga a ela —
+> não é acréscimo. Os percentuais vigentes são **importação 0,25 %**, **importação Fresno 0,25 %**
+> e **exportação 0,30 %**. É o que explica as colunas `Dif USD` e `% de Rentabilidade` do mesmo
+> relatório: o cliente paga o prêmio cheio e a seguradora recebe menos.
+>
+> **"Importação Fresno"** é o cliente **FRESNOMAQ Indústria de Máquinas S/A** (códigos 723, 2720 e
+> 2779 no legado, CNPJ raiz `06337280`, ~1.017 processos) — uma exceção de agravo negociada com esse
+> cliente, que o legado representava como um slot global fixo. Não existe tela "Parâmetros" no
+> Coomex Hub (conferido em 03/11/2026: não está no menu Sistema, nem no cadastro de Clientes, que só
+> tem Geral/Contatos/Dados Cobrança, nem no de Apólices) — a aba citada pelo cliente é de uma
+> planilha dele. Aqui o agravo do cliente mora em `Company.payableDiscountPercent`.
 
 ### Comissões
 `vlComissao` · `vlComissaoDolar` · `vlComissaoReal` · `vlComissaoParceiro` ·

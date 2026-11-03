@@ -41,6 +41,7 @@ const SECTIONS: NavSection[] = [
     title: 'Seguro',
     icon: ShieldCheck,
     items: [
+      { to: 'insurers', label: 'Seguradoras', permission: 'company:list' },
       { to: 'policies', label: 'Apólices', permission: 'policy:list' },
       { to: 'coverages', label: 'Coberturas', permission: 'coverage:list' },
       { to: 'client-rates', label: 'Taxas por cliente', permission: 'policy:list' },
@@ -117,6 +118,16 @@ export default function Registrations() {
           <Routes>
             <Route path="companies" element={<Companies />} />
             <Route path="employees" element={<Employees />} />
+            <Route
+              path="insurers"
+              element={
+                <Companies
+                  fixedRole="INSURER"
+                  title="Seguradoras"
+                  description="Companhias que emitem as apólices. É o mesmo cadastro de Empresas, filtrado pelo papel — uma seguradora que também seja parceira não precisa ser cadastrada duas vezes."
+                />
+              }
+            />
             <Route path="policies" element={<Policies />} />
             <Route path="coverages" element={<Coverages />} />
             <Route path="client-rates" element={<ClientRates />} />

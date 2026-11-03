@@ -75,6 +75,17 @@ Ou seja: `UserDialog.tsx` com `<Button>Salvar</Button>` — nunca `UsuarioDialog
 * **Nunca** clicar em *Salvar*, *Excluir*, *Emitir*, *Confirmar*, *Gerar* ou qualquer ação que persista
   dados, e nunca chamar endpoints de escrita.
 * Formulários podem ser abertos para inventariar campos, desde que abandonados sem submeter.
+* **Exceção autorizada pelo usuário em 03/11/2026 (tarefa 51):** é permitido chamar os endpoints de
+  **leitura** de cadastro (`/cadastro/obterTodos*` e `/cadastro/obterTodas*`) a partir da própria
+  página já autenticada, reaproveitando o token da sessão do operador. Serve para extrair cadastros
+  inteiros em uma requisição em vez de percorrer 134 páginas na tela. Condições:
+  - o código que faz a chamada precisa ter uma **allowlist** que recuse qualquer nome fora do padrão
+    `obterTodos*`/`obterTodas*` — o legado usa POST também para `salvar*`/`remover*`, então um erro
+    de digitação acertaria um endpoint de escrita em produção;
+  - nada de alterar parâmetros além de paginação (`nuPagina`, `qtRegistrosPorPagina`);
+  - continua valendo a proibição de qualquer escrita.
+* **Nunca recarregar a página** (`F5`/`location.reload()`) durante um trabalho no legado: o token
+  vive só em memória e o reload derruba a sessão, exigindo novo login do usuário.
 
 ---
 

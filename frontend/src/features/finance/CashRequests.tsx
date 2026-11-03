@@ -16,7 +16,7 @@ import {
   DialogHeader,
 } from '@/components/ui/dialog';
 import { api, errorMessage } from '@/lib/api';
-import { formatDate, formatMoney, parseNumber } from '@/lib/format';
+import { formatDate, formatMoney, formatRate, parseNumber } from '@/lib/format';
 import { useAuth } from '@/stores/auth';
 
 interface CashRequest {
@@ -24,8 +24,8 @@ interface CashRequest {
   version: number;
   status: 'PENDING_SEND' | 'SENT' | 'RECEIVED' | 'CANCELED';
   premiumInsurer: string;
-  surchargePercent: string;
-  surchargeAmount: string;
+  discountPercent: string;
+  discountAmount: string;
   amount: string;
   amountBrl: string;
   receivedAmountBrl: string | null;
@@ -53,6 +53,8 @@ interface PendingEndorsement {
   currency: { code: string } | null;
   quote: {
     number: number;
+    kind: 'IMPORT' | 'EXPORT';
+    clientId: string;
     client: { legalName: string; tradeName: string | null };
     insurer: { legalName: string; tradeName: string | null } | null;
   };
@@ -131,7 +133,7 @@ export default function CashRequests() {
   return (
     <Page
       title="Numerário"
-      description="Valor devido à seguradora por averbação definitiva, com o agravo aplicado."
+      description="Valor devido à seguradora por averbação definitiva, já com o agravo abatido."
       actions={
         can('cash_request:create') &&
         (pending?.length ?? 0) > 0 && (
@@ -261,8 +263,8 @@ export default function CashRequests() {
                       {formatMoney(row.premiumInsurer)}
                     </td>
                     <td className="tabular px-3 py-2.5 text-right text-[13.5px] text-muted-foreground">
-                      {Number(row.surchargeAmount) > 0
-                        ? `+${formatMoney(row.surchargeAmount)} (${Number(row.surchargePercent).toFixed(0)}%)`
+                      {Number(row.discountAmount) > 0
+                        ? `−${formatMoney(row.discountAmount)} (${formatRate(row.discountPercent)}%)`
                         : '—'}
                     </td>
                     <td className="tabular px-3 py-2.5 text-right text-[13.5px] font-medium text-foreground">
@@ -363,16 +365,31 @@ function CreateCashRequestDialog({
   onCreated: () => void;
 }) {
   const [endorsementId, setEndorsementId] = useState(endorsements[0]?.id ?? '');
-  const [surcharge, setSurcharge] = useState('0,00');
 
   const selected = endorsements.find((e) => e.id === endorsementId);
   const premium = Number(selected?.premiumInsurer ?? 0);
-  const percent = parseNumber(surcharge);
-  const total = premium + (premium * percent) / 100;
+
+  // O agravo não é digitado aqui: é regra de negócio (agravo do cliente, senão
+  // o do ramo), resolvida pelo backend. Deixar o operador preencher à mão foi
+  // justamente a origem do erro relatado na reunião — enviar o valor sem ele.
+  const { data: resolved } = useQuery({
+    queryKey: ['payable-discount', selected?.quote.kind, selected?.quote.clientId],
+    queryFn: async () => {
+      const { data } = await api.get('/quotes/payable-discount', {
+        params: { kind: selected!.quote.kind, clientId: selected!.quote.clientId },
+      });
+      return data as { percent: number };
+    },
+    enabled: !!selected,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const percent = resolved?.percent ?? 0;
+  const discount = (premium * percent) / 100;
+  const total = Math.max(premium - discount, 0);
 
   const create = useMutation({
-    mutationFn: () =>
-      api.post('/cash-requests', { endorsementId, surchargePercent: percent }),
+    mutationFn: () => api.post('/cash-requests', { endorsementId }),
     onSuccess: () => {
       toast.success('Numerário solicitado.');
       onCreated();
@@ -405,21 +422,6 @@ function CreateCashRequestDialog({
             </select>
           </Field>
 
-          <Field
-            label="Agravo (%)"
-            htmlFor="surcharge"
-            className="mt-4"
-            hint="Acréscimo sobre o valor devido. A confirmar com o cliente: 20% ou 25%."
-          >
-            <Input
-              id="surcharge"
-              className="tabular text-right"
-              inputMode="decimal"
-              value={surcharge}
-              onChange={(e) => setSurcharge(e.target.value)}
-            />
-          </Field>
-
           <div className="mt-5 rounded-md border border-border bg-surface-alt/50 px-4 py-3">
             <dl className="space-y-1.5 text-[13.5px]">
               <div className="flex justify-between">
@@ -427,10 +429,11 @@ function CreateCashRequestDialog({
                 <dd className="tabular text-foreground">{formatMoney(premium)}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-muted-foreground">Agravo ({percent.toFixed(0)}%)</dt>
-                <dd className="tabular text-foreground">
-                  +{formatMoney((premium * percent) / 100)}
-                </dd>
+                <dt className="text-muted-foreground">
+                  Agravo ({formatRate(percent)}%)
+                  <span className="ml-1 text-[12px]">· do cliente ou dos Parâmetros</span>
+                </dt>
+                <dd className="tabular text-final">−{formatMoney(discount)}</dd>
               </div>
               <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
                 <dt className="text-foreground">Total a pagar</dt>

@@ -2,6 +2,7 @@ import {
   Body, Controller, Delete, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, Req,
   UseGuards,
 } from '@nestjs/common';
+import { QuoteKind } from '@prisma/client';
 import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import type { Request } from 'express';
 import { QuotesService } from './quotes.service';
@@ -52,6 +53,19 @@ export class QuotesController {
   @Post('preview')
   preview(@Body() dto: PreviewQuoteDto) {
     return this.quotes.preview(dto);
+  }
+
+  /**
+   * Agravo que vale para um processo — o do cliente, quando negociado, senão
+   * o do ramo. A tela de cotação usa para preencher o campo; a regra fica aqui
+   * e não duplicada no frontend.
+   */
+  @RequirePermissions('quote:list')
+  @Get('payable-discount')
+  payableDiscount(@Query('kind') kind: QuoteKind, @Query('clientId') clientId?: string) {
+    return this.quotes
+      .resolvePayableDiscount(kind === 'EXPORT' ? QuoteKind.EXPORT : QuoteKind.IMPORT, clientId)
+      .then((percent) => ({ percent }));
   }
 
   /** Localiza processos por qualquer referência cadastrada. */

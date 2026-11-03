@@ -68,9 +68,12 @@ export function QuoteSummary({ result, calculating, currencyCode = '' }: QuoteSu
                 <p className="tabular mt-0.5 text-[17px] font-semibold text-foreground">
                   {formatMoney(result.premiumInsurer)}
                 </p>
-                {result.insurerSurcharge > 0 && (
+                {result.payableDiscount > 0 && (
                   <p className="tabular mt-1 text-[11.5px] text-muted-foreground">
                     a pagar c/ agravo: {formatMoney(result.insurerPayable)}
+                    <span className="ml-1 text-final">
+                      (−{formatMoney(result.payableDiscount)})
+                    </span>
                   </p>
                 )}
               </div>

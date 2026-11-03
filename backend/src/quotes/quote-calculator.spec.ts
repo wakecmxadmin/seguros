@@ -179,6 +179,8 @@ describe('calculateQuote — exportação', () => {
   });
 });
 
+const money = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+
 describe('calculateQuote — agravo da seguradora', () => {
   const base: CalculationInput = {
     kind: QuoteKind.IMPORT,
@@ -192,12 +194,42 @@ describe('calculateQuote — agravo da seguradora', () => {
     const result = calculateQuote(base);
     expect(result.premiumInsurer).toBe(50);
     expect(result.insurerPayable).toBe(50);
+    expect(result.payableDiscount).toBe(0);
   });
 
-  it('aplica o percentual de agravo informado', () => {
-    // Parametrizado: o legado tem o campo como 20% e a tela exibe 25%.
-    expect(calculateQuote({ ...base, insurerSurchargePercent: 20 }).insurerPayable).toBe(60);
-    expect(calculateQuote({ ...base, insurerSurchargePercent: 25 }).insurerPayable).toBe(62.5);
+  it('o agravo é desconto: abate do valor a pagar à seguradora', () => {
+    // Confirmado pelo cliente em 03/11/2026 — importação 0,25 %.
+    const result = calculateQuote({ ...base, payableDiscountPercent: 0.25 });
+    // 50,00 × 0,25 % = 0,125 → 0,13; o que a corretora paga é o resto.
+    expect(result.payableDiscount).toBe(0.13);
+    expect(result.insurerPayable).toBe(49.87);
+  });
+
+  it('usa o percentual de exportação quando informado', () => {
+    // Exportação 0,30 % sobre um prêmio maior, para checar o arredondamento.
+    const result = calculateQuote({
+      ...base,
+      kind: QuoteKind.EXPORT,
+      cifValue: 10000,
+      payableDiscountPercent: 0.3,
+    });
+    expect(result.payableDiscount).toBe(money(result.premiumInsurer * 0.003));
+    expect(result.insurerPayable).toBe(
+      money(result.premiumInsurer - result.payableDiscount),
+    );
+  });
+
+  it('o agravo entra na margem bruta — é a rentabilidade do processo', () => {
+    const semAgravo = calculateQuote(base);
+    const comAgravo = calculateQuote({ ...base, payableDiscountPercent: 0.25 });
+    expect(comAgravo.grossMargin).toBe(
+      money(semAgravo.grossMargin + comAgravo.payableDiscount),
+    );
+  });
+
+  it('nunca gera pagamento negativo, mesmo com percentual absurdo', () => {
+    const result = calculateQuote({ ...base, payableDiscountPercent: 150 });
+    expect(result.insurerPayable).toBe(0);
   });
 });
 
