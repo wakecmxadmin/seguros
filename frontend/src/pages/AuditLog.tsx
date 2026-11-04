@@ -118,6 +118,8 @@ export default function AuditLog() {
 
   return (
     <Page
+      backTo="/settings"
+      backLabel="Configurações"
       title="Auditoria"
       description="Quem fez o quê e quando. O sistema antigo não registrava nada disso."
     >

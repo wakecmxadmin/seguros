@@ -134,6 +134,8 @@ export default function Roles() {
 
   return (
     <Page
+      backTo="/settings"
+      backLabel="Configurações"
       title="Papéis e permissões"
       description="Um papel agrupa permissões. Cada usuário recebe um ou mais papéis."
       actions={

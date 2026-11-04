@@ -1,157 +1,84 @@
-import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { Check, RotateCcw } from 'lucide-react';
+import { Link, Navigate } from 'react-router-dom';
+import { ChevronRight, History, ShieldCheck, SlidersHorizontal, Users } from 'lucide-react';
 import { Page } from '@/components/ui/page';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Loading, LoadError } from '@/components/ui/states';
-import { api, errorMessage } from '@/lib/api';
 import { useAuth } from '@/stores/auth';
 
-interface Setting {
-  key: string;
+interface SettingsCard {
+  to: string;
   label: string;
   description: string;
-  unit: string;
-  group: string;
-  value: string;
-  default: string;
-  isDefault: boolean;
+  icon: typeof Users;
+  permission: string;
 }
 
 /**
- * Parâmetros de negócio que ainda dependem de confirmação do cliente
- * (ver docs/12-reuniao-cliente.md). Editáveis para não travar a operação.
+ * Ponto de entrada da Administração: em vez de cinco itens soltos na sidebar,
+ * um lugar só de onde se chega a cada tela de configuração.
  */
+const CARDS: SettingsCard[] = [
+  {
+    to: '/settings/users',
+    label: 'Usuários',
+    description: 'Quem acessa o sistema, com quais papéis, e convites de primeiro acesso.',
+    icon: Users,
+    permission: 'user:list',
+  },
+  {
+    to: '/settings/roles',
+    label: 'Papéis e permissões',
+    description: 'Um papel agrupa permissões. Cada usuário recebe um ou mais papéis.',
+    icon: ShieldCheck,
+    permission: 'role:list',
+  },
+  {
+    to: '/settings/parameters',
+    label: 'Parâmetros',
+    description: 'Valores de negócio que o cálculo usa: agravo, financeiro e prazos.',
+    icon: SlidersHorizontal,
+    permission: 'quote:list',
+  },
+  {
+    to: '/settings/audit',
+    label: 'Auditoria',
+    description: 'Quem fez o quê e quando, com o antes e o depois de cada alteração.',
+    icon: History,
+    permission: 'audit:list',
+  },
+];
+
 export default function Settings() {
   const { can } = useAuth();
-  const queryClient = useQueryClient();
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const cards = CARDS.filter((card) => can(card.permission));
 
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['settings'],
-    queryFn: async () => {
-      const { data } = await api.get('/settings');
-      return data as Setting[];
-    },
-  });
-
-  const save = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: string }) =>
-      api.put(`/settings/${key}`, { value }),
-    onSuccess: (_, { key }) => {
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
-      setDrafts((current) => {
-        const next = { ...current };
-        delete next[key];
-        return next;
-      });
-      toast.success('Parâmetro atualizado.');
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-
-  const canEdit = can('rate:update');
-
-  // Seis parâmetros em lista corrida obrigam a ler todos para achar um.
-  // Agrupados por contexto (agravo, financeiro, prazos) a leitura é direta.
-  const groups = (data ?? []).reduce<Record<string, Setting[]>>((acc, setting) => {
-    (acc[setting.group] ??= []).push(setting);
-    return acc;
-  }, {});
+  // A tela não tem conteúdo próprio: sem nenhum card não há o que mostrar.
+  if (cards.length === 0) return <Navigate to="/forbidden" replace />;
 
   return (
     <Page
-      title="Parâmetros"
-      description="Valores de negócio que o cálculo usa. Alterar aqui vale para os próximos processos."
+      title="Configurações"
+      description="Acesso das pessoas, parâmetros de cálculo e histórico de alterações."
     >
-      <div className="max-w-3xl overflow-hidden rounded-lg border border-border bg-surface shadow-card">
-        {isLoading ? (
-          <Loading />
-        ) : isError ? (
-          <LoadError message={errorMessage(error)} />
-        ) : (
-          <div className="divide-y divide-border">
-            {Object.entries(groups).map(([group, settings]) => (
-              <section key={group}>
-                <h2 className="bg-surface-alt/60 px-5 py-2 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {group}
-                </h2>
-                <ul className="divide-y divide-border">
-                  {settings.map((setting) => {
-                    const draft = drafts[setting.key];
-                    const isDirty = draft !== undefined && draft !== setting.value;
+      <div className="grid max-w-4xl gap-3 sm:grid-cols-2">
+        {cards.map((card) => (
+          <Link
+            key={card.to}
+            to={card.to}
+            className="group flex items-start gap-3.5 rounded-lg border border-border bg-surface p-4 shadow-card transition-colors hover:border-navy/30 hover:bg-surface-alt/50"
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-navy/8 text-navy">
+              <card.icon className="h-[18px] w-[18px]" />
+            </span>
 
-                    return (
-                      <li key={setting.key} className="px-5 py-4">
-                        <div className="flex flex-wrap items-start justify-between gap-4">
-                          <div className="min-w-0 flex-1">
-                            <p className="flex flex-wrap items-center gap-2 text-[14px] font-medium text-foreground">
-                              {setting.label}
-                              {setting.isDefault && <Badge variant="neutral">padrão</Badge>}
-                            </p>
-                            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-                              {setting.description}
-                            </p>
-                            <code className="mt-1 block text-[11.5px] text-muted-foreground/60">
-                              {setting.key}
-                            </code>
-                          </div>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-medium text-foreground">{card.label}</span>
+              <span className="mt-1 block text-[13px] leading-relaxed text-muted-foreground">
+                {card.description}
+              </span>
+            </span>
 
-                          <div className="flex items-center gap-2">
-                            <div className="relative">
-                              <Input
-                                className="tabular w-28 pr-12 text-right"
-                                inputMode="decimal"
-                                disabled={!canEdit}
-                                value={draft ?? setting.value}
-                                onChange={(e) =>
-                                  setDrafts((c) => ({ ...c, [setting.key]: e.target.value }))
-                                }
-                              />
-                              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground">
-                                {setting.unit}
-                              </span>
-                            </div>
-
-                            {isDirty && (
-                              <>
-                                <Button
-                                  size="icon"
-                                  title="Salvar"
-                                  loading={save.isPending}
-                                  onClick={() => save.mutate({ key: setting.key, value: draft })}
-                                >
-                                  <Check className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  title="Descartar"
-                                  onClick={() =>
-                                    setDrafts((c) => {
-                                      const next = { ...c };
-                                      delete next[setting.key];
-                                      return next;
-                                    })
-                                  }
-                                >
-                                  <RotateCcw className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))}
-          </div>
-        )}
+            <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-navy" />
+          </Link>
+        ))}
       </div>
     </Page>
   );

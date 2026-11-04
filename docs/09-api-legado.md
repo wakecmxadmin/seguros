@@ -145,6 +145,31 @@ Volumes reais medidos:
 
 > **Não existe cadastro de Vistoriadores** no legado: nenhuma rota `*Selecao` e nenhum
 > endpoint `obterTodos*` correspondente. O item estava no escopo da tarefa 51 por engano.
+> Reconfirmado em 04/11/2026 na própria aplicação: navegar para `#/VistoriadoresSelecao/Menu`
+> redireciona para `#/login` sem disparar requisição alguma — e **derruba a sessão**.
+> `docs/01-mapa-navegacao.md` listava essa rota; a entrada foi corrigida.
+
+> **Transportadoras** reconfirmado em 04/11/2026: a tela `#/TransportadorasSelecao/Menu` existe
+> e abre com a tabela vazia, e `obterTodasTransportadoras` devolve `qtRegistros: 0`. Na mesma
+> sessão `obterTodosNavios` devolveu 1.357 como controle. **Nada a importar.**
+
+### Formato do corpo — dois campos que não aceitam `null`
+
+`cdRestricao` precisa ser **string vazia** (`""`) e `cdUsuario` o **nome do operador logado**
+(ex.: `"William Ruytina"`). Com `null` em qualquer um dos dois o legado responde **HTTP 500**,
+sem mensagem. O corpo que a própria aplicação envia:
+
+```json
+{"nuConsulta":0,"nuPagina":1,"qtRegistrosPorPagina":15,"qtPaginas":0,
+ "cdEmpresa":"Fidcargo","cdRestricao":"","cdUsuario":"William Ruytina","registros":[{"id":{}}]}
+```
+
+### Download dos Modelos de Proposta
+
+O botão "Download modelo" chama `POST /cadastro/obterArquivoModeloProposta` e devolve o `.docx`
+(~130 KB cada). **Fora da allowlist `obterTodos*`/`obterTodas*`** — foi acionado pelo botão da
+própria tela, não por chamada direta. O Chrome bloqueia esses downloads duas vezes: por virem de
+origem HTTP insegura (ficam como "Não confirmado") e por serem múltiplos do mesmo site.
 
 Autenticação: header `Authorization` com o token da sessão. O corpo segue o modelo
 `{nuConsulta, nuPagina, qtRegistrosPorPagina, qtPaginas, cdEmpresa, cdRestricao, cdUsuario, registros:[{id:{}}]}`

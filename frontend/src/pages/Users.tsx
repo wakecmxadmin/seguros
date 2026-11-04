@@ -84,6 +84,8 @@ export default function Users() {
 
   return (
     <Page
+      backTo="/settings"
+      backLabel="Configurações"
       title="Usuários"
       description="Quem acessa o sistema, com quais papéis e permissões."
       actions={

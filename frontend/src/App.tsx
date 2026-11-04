@@ -10,9 +10,11 @@ import SignIn from '@/pages/SignIn';
 import ForgotPassword from '@/pages/ForgotPassword';
 import SetPassword from '@/pages/SetPassword';
 import Home from '@/pages/Home';
+import Registrations from '@/pages/Registrations';
 import Users from '@/pages/Users';
 import Roles from '@/pages/Roles';
-import Registrations from '@/pages/Registrations';
+import AuditLog from '@/pages/AuditLog';
+import Parameters from '@/pages/Parameters';
 import QuoteList from '@/features/quotes/QuoteList';
 import QuoteForm from '@/features/quotes/QuoteForm';
 import EndorsementList from '@/features/endorsements/EndorsementList';
@@ -21,7 +23,6 @@ import Settings from '@/pages/Settings';
 import CashRequests from '@/features/finance/CashRequests';
 import Commissions from '@/features/finance/Commissions';
 import MyAccount from '@/pages/MyAccount';
-import AuditLog from '@/pages/AuditLog';
 import Forbidden from '@/pages/Forbidden';
 import NotFound from '@/pages/NotFound';
 import GmailCallback from '@/pages/GmailCallback';
@@ -57,13 +58,30 @@ export default function App() {
               <Route path="/forbidden" element={<Forbidden />} />
               <Route path="/my-account" element={<MyAccount />} />
 
+              {/* Configurações é só o ponto de entrada: cada tela abaixo dela tem
+                  rota e permissão próprias. */}
+              <Route path="/settings" element={<Settings />} />
+
+              <Route element={<ProtectedRoute permission="user:list" />}>
+                <Route path="/settings/users" element={<Users />} />
+              </Route>
+
+              <Route element={<ProtectedRoute permission="role:list" />}>
+                <Route path="/settings/roles" element={<Roles />} />
+              </Route>
+
               <Route element={<ProtectedRoute permission="quote:list" />}>
-                <Route path="/settings" element={<Settings />} />
+                <Route path="/settings/parameters" element={<Parameters />} />
               </Route>
 
               <Route element={<ProtectedRoute permission="audit:list" />}>
-                <Route path="/audit" element={<AuditLog />} />
+                <Route path="/settings/audit" element={<AuditLog />} />
               </Route>
+
+              {/* Rotas antigas, de antes do agrupamento. */}
+              <Route path="/users" element={<Navigate to="/settings/users" replace />} />
+              <Route path="/roles" element={<Navigate to="/settings/roles" replace />} />
+              <Route path="/audit" element={<Navigate to="/settings/audit" replace />} />
 
               <Route element={<ProtectedRoute permission="quote:list" />}>
                 <Route path="/quotes" element={<QuoteList />} />
@@ -86,14 +104,6 @@ export default function App() {
 
               <Route element={<ProtectedRoute permission="catalog:list" />}>
                 <Route path="/registrations/*" element={<Registrations />} />
-              </Route>
-
-              <Route element={<ProtectedRoute permission="user:list" />}>
-                <Route path="/users" element={<Users />} />
-              </Route>
-
-              <Route element={<ProtectedRoute permission="role:list" />}>
-                <Route path="/roles" element={<Roles />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

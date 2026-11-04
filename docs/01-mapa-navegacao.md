@@ -26,7 +26,7 @@ Grid de cards de atalho + campo "Filtrar Atalhos". Atalhos padrão:
 | Cadastro de Coberturas | `#/CoberturasSelecao/Menu` |
 | Cadastro de E-mails | `#/EmailsSelecao/Menu` |
 | Cadastro de Embalagens | `#/EmbalagensSelecao/Menu` |
-| Cadastro de Vistorias | `#/VistoriadoresSelecao/Menu` |
+| ~~Cadastro de Vistorias~~ | ~~`#/VistoriadoresSelecao/Menu`~~ — **rota inexistente**, verificada em 04/11/2026: o Angular redireciona para `#/login` e nenhuma requisição é disparada. Ver `09-api-legado.md`. |
 | Cadastro de Funcionarios | `#/FuncionariosSelecao/Menu` |
 | Cadastro de Mercadorias | `#/MercadoriasSelecao/Menu` |
 | Cadastro de Moedas | `#/MoedasSelecao/Menu` |

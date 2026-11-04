@@ -560,11 +560,47 @@ model Coverage {
   policies    PolicyCoverage[]
   quotes      Quote[]
   clientRates ClientRate[]
+  templates   ProposalTemplate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("coverages")
+}
+
+/// Modelo de documento (.docx) a partir do qual a proposta é gerada, por
+/// combinação Tipo × Cobertura. No legado (`#/ModelosPropostaSelecao/Menu`) a
+/// chave é `cdTipo` × `cdCobertura` × `dtVersao` e o versionamento era feito
+/// no **nome do arquivo** — daí as duplicatas "(1)", "(cópia)" e "Unico" nos
+/// registros antigos. Aqui cada versão é uma linha e a vigente de cada
+/// combinação fica marcada em `current`.
+model ProposalTemplate {
+  id   String    @id @default(uuid())
+  kind QuoteKind
+
+  coverageId String
+  coverage   Coverage @relation(fields: [coverageId], references: [id], onDelete: Restrict)
+
+  /// `dtVersao` do legado — parte da chave composta lá.
+  version DateTime @db.Date
+  /// Nome do arquivo como cadastrado no legado (`deArquivo`), sem extensão.
+  fileName String
+  /// Versão vigente da combinação Tipo × Cobertura (a de maior `version`).
+  current Boolean @default(false)
+  active  Boolean @default(true)
+
+  /// Binário .docx no S3. Nulo enquanto o arquivo não foi baixado do legado —
+  /// o cadastro do legado só expõe o nome; o conteúdo vem pelo botão de download.
+  storageKey String?
+  mimeType   String?
+  sizeBytes  Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, coverageId, version])
+  @@index([kind, coverageId, current])
+  @@map("proposal_templates")
 }
 
 model PolicyCoverage {

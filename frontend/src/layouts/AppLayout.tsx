@@ -6,14 +6,11 @@ import {
   LogOut,
   Menu,
   CalendarCheck,
-  History,
   Library,
-  SlidersHorizontal,
   Receipt,
   Settings,
-  ShieldCheck,
+  UserRound,
   Ship,
-  Users,
   Wallet,
   X,
 } from 'lucide-react';
@@ -27,6 +24,8 @@ interface NavItem {
   icon: typeof Ship;
   /** Permissão necessária para o item aparecer. */
   permission?: string;
+  /** Alternativa a `permission`: basta ter uma das permissões da lista. */
+  anyPermission?: string[];
 }
 
 interface NavGroup {
@@ -63,10 +62,13 @@ const NAV: NavGroup[] = [
     title: 'Administração',
     items: [
       { label: 'Cadastros', to: '/registrations', icon: Library, permission: 'catalog:list' },
-      { label: 'Usuários', to: '/users', icon: Users, permission: 'user:list' },
-      { label: 'Papéis e permissões', to: '/roles', icon: ShieldCheck, permission: 'role:list' },
-      { label: 'Auditoria', to: '/audit', icon: History, permission: 'audit:list' },
-      { label: 'Parâmetros', to: '/settings', icon: SlidersHorizontal, permission: 'quote:list' },
+      {
+        // Usuários, papéis, parâmetros e auditoria vivem dentro desta tela.
+        label: 'Configurações',
+        to: '/settings',
+        icon: Settings,
+        anyPermission: ['user:list', 'role:list', 'audit:list', 'quote:list'],
+      },
     ],
   },
 ];
@@ -79,7 +81,11 @@ export function AppLayout() {
 
   const groups = NAV.map((g) => ({
     ...g,
-    items: g.items.filter((i) => !i.permission || can(i.permission)),
+    items: g.items.filter(
+      (i) =>
+        (!i.permission || can(i.permission)) &&
+        (!i.anyPermission || i.anyPermission.some((p) => can(p))),
+    ),
   })).filter((g) => g.items.length > 0);
 
   async function handleSignOut() {
@@ -94,12 +100,12 @@ export function AppLayout() {
         className={cn(
           // `sticky` + `h-screen` prende a sidebar à altura da janela: sem isso ela
           // acompanha a altura do conteúdo e "estica" em páginas longas.
-          'fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-border bg-[#f7f7f7] transition-transform',
+          'fixed inset-y-0 left-0 z-40 flex w-[208px] flex-col border-r border-border bg-[#f7f7f7] transition-transform',
           'lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
           navOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="relative flex h-24 items-center justify-center border-b border-border px-5">
+        <div className="relative flex h-20 items-center justify-center border-b border-border px-4">
           <Link to="/" onClick={() => setNavOpen(false)}>
             <Brand large />
           </Link>
@@ -152,7 +158,7 @@ export function AppLayout() {
                 onClick={() => setAccountOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] text-foreground transition-colors hover:bg-surface-alt"
               >
-                <Settings className="h-4 w-4 text-muted-foreground" />
+                <UserRound className="h-4 w-4 text-muted-foreground" />
                 Minha conta
               </Link>
               <button
@@ -210,7 +216,10 @@ export function AppLayout() {
           <Brand chip />
         </header>
 
-        <main className="flex-1 overflow-x-hidden">
+        {/* `overflow-x-clip` (e não `hidden`): corta o transbordo horizontal sem criar
+            contexto de rolagem — `hidden` tornaria este <main> o scroller e quebraria
+            o `sticky` das barras laterais internas (ex.: Cadastros). */}
+        <main className="flex-1 overflow-x-clip">
           <Outlet />
         </main>
       </div>

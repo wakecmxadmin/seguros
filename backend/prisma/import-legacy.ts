@@ -5,6 +5,7 @@ import { ImportStats } from './legacy/helpers';
 import { importCompanies } from './legacy/companies';
 import { importCoverages, importPolicies } from './legacy/policies';
 import { importCommodityTypes, importEmployees, importVessels } from './legacy/catalog';
+import { importProposalTemplates } from './legacy/templates';
 
 /**
  * Importa os **cadastros** do sistema legado ("Coomex Hub" / pinhoV2) para o
@@ -50,15 +51,13 @@ const IMPORTERS: Record<string, Importer> = {
     file: 'prisma/data/legacy-seguradoras.json',
     run: (path) => importCompanies(prisma, CompanyRoleType.INSURER, path),
   },
+  // O cadastro existe no legado mas está **vazio** (`obterTodasTransportadoras`
+  // devolve 0 registros, verificado em 04/11/2026). O importador fica pronto
+  // caso passem a usá-lo; hoje não há arquivo de extração a gerar.
   transportadoras: {
     label: 'Transportadoras',
     file: 'prisma/data/legacy-transportadoras.json',
     run: (path) => importCompanies(prisma, CompanyRoleType.CARRIER, path),
-  },
-  vistoriadores: {
-    label: 'Vistoriadores',
-    file: 'prisma/data/legacy-vistoriadores.json',
-    run: (path) => importCompanies(prisma, CompanyRoleType.SURVEYOR, path),
   },
   apolices: {
     label: 'Apólices',
@@ -85,6 +84,11 @@ const IMPORTERS: Record<string, Importer> = {
     file: 'prisma/data/legacy-navios.json',
     run: (path) => importVessels(prisma, path),
   },
+  'modelos-propostas': {
+    label: 'Modelos de Proposta',
+    file: 'prisma/data/legacy-modelos-propostas.json',
+    run: (path) => importProposalTemplates(prisma, path),
+  },
 };
 
 /**
@@ -96,12 +100,12 @@ const ALL_ORDER = [
   'parceiros',
   'seguradoras',
   'transportadoras',
-  'vistoriadores',
   'apolices',
   'coberturas',
   'funcionarios',
   'mercadorias',
   'navios',
+  'modelos-propostas',
 ];
 
 function usage(): void {

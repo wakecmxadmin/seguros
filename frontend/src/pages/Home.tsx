@@ -12,8 +12,8 @@ const ENTRY_POINTS: Array<{ permission: string; to: string }> = [
   { permission: 'cash_request:create', to: '/cash-requests' },
   { permission: 'commission:list', to: '/commissions' },
   { permission: 'catalog:list', to: '/registrations' },
-  { permission: 'user:list', to: '/users' },
-  { permission: 'role:list', to: '/roles' },
+  { permission: 'user:list', to: '/settings/users' },
+  { permission: 'role:list', to: '/settings/roles' },
 ];
 
 export default function Home() {

@@ -84,7 +84,7 @@ export default function Registrations() {
     >
       <div className="grid gap-6 lg:grid-cols-[212px_1fr]">
         {/* Navegação interna */}
-        <nav className="lg:sticky lg:top-8 lg:self-start">
+        <nav className="lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
           {sections.map((section) => (
             <div key={section.title} className="mb-5 last:mb-0">
               <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/70">

@@ -1,8 +1,8 @@
 # Tarefas
 
-`***************-----` **75%**
+`***************-----` **76%**
 
-**Total:** 51  ·  **Pendentes:** 13  ·  **Feitas (aguardando fechamento):** 4  ·  **Concluídas:** 34
+**Total:** 51  ·  **Pendentes:** 12  ·  **Feitas (aguardando fechamento):** 5  ·  **Concluídas:** 34
 
 ---
 
@@ -126,7 +126,7 @@
   `docs/13-sigra-campos-necessarios.md`. Escolher processos variados (marítimo FCL, aéreo, com e
   sem impostos) pra não repetir o viés dos dois exemplos atuais.
 
-- [ ] **51.** **Migrar os cadastros do legado para o nosso banco.** Escopo fechado com o usuário
+- [x] **51.** **Migrar os cadastros do legado para o nosso banco.** Escopo fechado com o usuário
   (30/10/2026): **só cadastros**, sem histórico de transações — o histórico continua consultável no
   legado. Entidades a trazer, na ordem: **Clientes** (`#/ClientesSelecao/Menu`, ~75 registros,
   mesma estrutura de Parceiros), **Seguradoras** (9, com "Bradesco" duplicado a resolver),
@@ -141,6 +141,18 @@
   (275 `companies` com papel PARTNER). Pré-requisito de schema: nenhuma entidade guarda o código do
   legado — sem isso o import não é idempotente nem permite correlacionar depois. Adicionar
   `legacyCode` em `Company`, `Policy` e `Employee` antes de rodar.
+
+  **Concluída em 04/11/2026.** Importados: Clientes (2.790), Parceiros (275), Seguradoras (9),
+  Apólices (65), Coberturas (10), Funcionários (4), Mercadorias (11), Navios (1.357) e
+  **Modelos de Proposta** (63 versões, 4 vigentes com o `.docx` no S3). Duas entidades do
+  escopo original não existiam como dado: **Transportadoras** — cadastro existe no legado mas
+  está vazio (`qtRegistros: 0`), importador pronto caso passem a usá-lo — e **Vistoriadores**,
+  que **não existe** no legado (rota `#/VistoriadoresSelecao/Menu` inválida); o importador foi
+  removido e `docs/01-mapa-navegacao.md` corrigido. Novo model `ProposalTemplate`
+  (migration `20261104120000_proposal_templates`) + `prisma/legacy/templates.ts`, idempotente:
+  rerodar só completa o que falta. O campo **IMO de navios não veio do legado** porque lá não
+  existe — o cadastro só tem nome e código; `imo` e `buildYear` são campos novos nossos,
+  a preencher manualmente.
 
 ---
 

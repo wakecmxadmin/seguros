@@ -72,7 +72,7 @@ export function Brand({ chip, large }: { chip?: boolean; large?: boolean }) {
       src={logo}
       alt="Coomex"
       className={cn(
-        large ? 'h-24 w-48' : 'h-14 w-32',
+        large ? 'h-20 w-40' : 'h-14 w-32',
         'object-contain',
         // Fundo do JPEG não é branco puro: é o cinza neutro #F7F7F7 (medido
         // nos cantos vazios da imagem). Usamos o mesmo tom no chip para a
