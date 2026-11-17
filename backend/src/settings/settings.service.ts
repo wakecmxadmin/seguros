@@ -7,10 +7,10 @@ import type { RequestContext } from '../auth/auth.service';
  * Parâmetros de negócio ajustáveis sem deploy.
  *
  * Os valores default vieram das anotações da reunião (docs/12-reuniao-cliente.md)
- * e da confirmação do cliente sobre o agravo (03/11/2026). Ficam configuráveis
+ * e da conferência do agravo contra numerários reais do legado (16/11/2026). Ficam configuráveis
  * porque mudam por negociação com a seguradora, sem exigir release.
  *
- * Os decimais são escritos no formato pt-BR ("0,25") — `parseDecimal` aceita
+ * Os decimais são escritos no formato pt-BR ("12,5") — `parseDecimal` aceita
  * vírgula e ponto, então o operador pode digitar do jeito que estiver acostumado.
  */
 export const SETTINGS = {
@@ -18,7 +18,7 @@ export const SETTINGS = {
     label: 'Agravo — Importação',
     description:
       'Desconto que a seguradora concede sobre o prêmio, reduzindo o valor a pagar a ela. Aplicado automaticamente nas cotações e averbações de importação.',
-    default: '0,25',
+    default: '25',
     unit: '%',
     group: 'Agravo (desconto da seguradora)',
   },
@@ -26,7 +26,7 @@ export const SETTINGS = {
     label: 'Agravo — Exportação',
     description:
       'Desconto concedido pela seguradora nas operações de exportação. Aplicado automaticamente nas cotações e averbações de exportação.',
-    default: '0,30',
+    default: '30',
     unit: '%',
     group: 'Agravo (desconto da seguradora)',
   },
@@ -37,6 +37,14 @@ export const SETTINGS = {
     default: '25',
     unit: '%',
     group: 'Financeiro',
+  },
+  'insurance.extension_percent': {
+    label: 'Prorrogação',
+    description:
+      'Percentual sobre o prêmio da definitiva cobrado em cada prorrogação. Conferido em 35 numerários do legado: prorrogação = prêmio do cliente × 20 %. Aplicado também ao prêmio da seguradora.',
+    default: '20',
+    unit: '%',
+    group: 'Prorrogação',
   },
   'deadline.tfa_days': {
     label: 'Prazo de TFA (liberação de avarias)',
@@ -52,6 +60,35 @@ export const SETTINGS = {
     default: '15',
     unit: 'dias',
     group: 'Prazos',
+  },
+  'alerts.deadline_warning_days': {
+    label: 'Aviso de prazo vencendo',
+    description:
+      'Quantos dias antes do vencimento do TFA ou do prazo de averbação a averbação passa a aparecer em Pendências.',
+    default: '3',
+    unit: 'dias',
+    group: 'Pendências',
+  },
+  'alerts.provisional_without_final_days': {
+    label: 'Provisória sem definitiva',
+    description: 'Dias desde a emissão para uma provisória sem nenhuma definitiva aparecer em Pendências.',
+    default: '30',
+    unit: 'dias',
+    group: 'Pendências',
+  },
+  'alerts.stale_quote_days': {
+    label: 'Cotação parada',
+    description: 'Dias sem nenhuma alteração para uma cotação em aberto ou aprovada aparecer em Pendências.',
+    default: '7',
+    unit: 'dias',
+    group: 'Pendências',
+  },
+  'alerts.policy_expiry_days': {
+    label: 'Apólice a vencer',
+    description: 'Antecedência, em dias, para avisar do fim de vigência de uma apólice ativa.',
+    default: '30',
+    unit: 'dias',
+    group: 'Pendências',
   },
 } as const;
 
@@ -98,8 +135,10 @@ export class SettingsService {
   /**
    * Agravo do ramo — o desconto que a seguradora concede sobre o prêmio.
    *
-   * Confirmado com o cliente em 03/11/2026: importação 0,25 %, exportação
-   * 0,30 %. Um cliente pode ter agravo próprio negociado
+   * Importação 25 %, exportação 30 %. O cliente informou "0,25" e "0,30" em
+   * 03/11/2026, mas era fator, não percentual: em 35 numerários pagos do
+   * legado o valor a pagar com agravo é exatamente 75 % do prêmio da
+   * seguradora (docs/19-legado-validacoes.md). Um cliente pode ter agravo próprio negociado
    * (`Company.payableDiscountPercent`), que tem precedência sobre este —
    * é o caso da FRESNOMAQ, que no legado tinha um slot fixo "Importação Fresno".
    */

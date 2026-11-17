@@ -225,7 +225,7 @@ export function CatalogCrud({ config }: { config: CatalogConfig }) {
       {removing && (
         <ConfirmDialog
           title={`Excluir ${config.label.toLowerCase()}?`}
-          description={`"${removing.name ?? removing.code}" será removido permanentemente. Se estiver em uso por alguma cotação, prefira desativá-lo.`}
+          description={`"${removing.name ?? removing.email ?? removing.code}" será removido permanentemente. Se estiver em uso por alguma cotação, prefira desativá-lo.`}
           confirmLabel="Excluir"
           destructive
           loading={remove.isPending}

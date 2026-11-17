@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, Save } from 'lucide-react';
+import { ArrowLeft, Check, FileDown, Save } from 'lucide-react';
 import { Page } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
 import { Loading, LoadError } from '@/components/ui/states';
 import { api, errorMessage } from '@/lib/api';
 import { formatMoney, formatRate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/stores/auth';
 import { QuoteKind } from '@/lib/enums';
 import { QuoteSummary } from './QuoteSummary';
 import {
@@ -47,6 +48,8 @@ export default function QuoteForm() {
   const kindParam = (params.get('kind') as 'IMPORT' | 'EXPORT') ?? 'IMPORT';
   const [values, setValues] = useState<QuoteFormValues>(() => emptyQuote(kindParam));
   const [step, setStep] = useState(0);
+  const [downloadingProposal, setDownloadingProposal] = useState(false);
+  const { can } = useAuth();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sigraDraft, setSigraDraft] = useState<SigraDraft | null>(null);
 
@@ -239,6 +242,43 @@ export default function QuoteForm() {
   const steps = isEditing ? [...STEPS, COMMUNICATION_STEP] : STEPS;
   const isCommunicationStep = steps[step]?.key === 'communication';
 
+  /** Proposta .docx gerada no servidor a partir do modelo vigente. */
+  async function downloadProposal() {
+    setDownloadingProposal(true);
+    try {
+      const response = await api.get(`/documents/quotes/${id}/proposal`, { responseType: 'blob' });
+      const disposition = String(response.headers['content-disposition'] ?? '');
+      const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'proposta.docx';
+      const href = URL.createObjectURL(response.data as Blob);
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(href);
+
+      const unresolved = String(response.headers['x-unresolved-placeholders'] ?? '');
+      if (unresolved) {
+        toast.warning(
+          `O modelo tem campos que o sistema não preenche: ${unresolved.split(',').join(', ')}. Confira o documento antes de enviar.`,
+        );
+      }
+    } catch (error) {
+      // Erro de blob: a mensagem do backend vem dentro do Blob.
+      let message = errorMessage(error, 'Não foi possível gerar a proposta.');
+      const data = (error as { response?: { data?: unknown } }).response?.data;
+      if (data instanceof Blob) {
+        try {
+          message = JSON.parse(await data.text()).message ?? message;
+        } catch {
+          /* mantém a mensagem genérica */
+        }
+      }
+      toast.error(message);
+    } finally {
+      setDownloadingProposal(false);
+    }
+  }
+
   return (
     <Page
       title={
@@ -257,6 +297,17 @@ export default function QuoteForm() {
             <ArrowLeft className="h-4 w-4" />
             Voltar
           </Button>
+          {isEditing && existing?.calculatedAt && can('document:generate') && (
+            <Button
+              variant="outline"
+              loading={downloadingProposal}
+              onClick={downloadProposal}
+              title="Gera a proposta a partir do modelo vigente para o tipo e a cobertura"
+            >
+              <FileDown className="h-4 w-4" />
+              Proposta
+            </Button>
+          )}
           <Button
             loading={save.isPending}
             onClick={() => validate() && save.mutate()}

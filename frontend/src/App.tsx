@@ -22,6 +22,10 @@ import MonthlyBatches from '@/features/endorsements/MonthlyBatches';
 import Settings from '@/pages/Settings';
 import CashRequests from '@/features/finance/CashRequests';
 import Commissions from '@/features/finance/Commissions';
+import Reports from '@/features/reports/Reports';
+import Alerts from '@/features/alerts/Alerts';
+import EndorsementPrint from '@/features/documents/EndorsementPrint';
+import EndorsementSelectionPrint from '@/features/documents/EndorsementSelectionPrint';
 import MyAccount from '@/pages/MyAccount';
 import Forbidden from '@/pages/Forbidden';
 import NotFound from '@/pages/NotFound';
@@ -53,6 +57,12 @@ export default function App() {
 
           {/* Autenticado */}
           <Route element={<ProtectedRoute />}>
+            {/* Documentos para impressão: fora do layout, para sair limpo no papel. */}
+            <Route element={<ProtectedRoute permission="document:generate" />}>
+              <Route path="/print/endorsements/:id" element={<EndorsementPrint />} />
+              <Route path="/print/endorsement-selection" element={<EndorsementSelectionPrint />} />
+            </Route>
+
             <Route element={<AppLayout />}>
               <Route path="/" element={<Home />} />
               <Route path="/forbidden" element={<Forbidden />} />
@@ -100,6 +110,14 @@ export default function App() {
 
               <Route element={<ProtectedRoute permission="commission:list" />}>
                 <Route path="/commissions" element={<Commissions />} />
+              </Route>
+
+              <Route element={<ProtectedRoute anyPermission={['report:production', 'report:ranking']} />}>
+                <Route path="/reports" element={<Reports />} />
+              </Route>
+
+              <Route element={<ProtectedRoute anyPermission={['quote:list', 'endorsement:list', 'policy:list']} />}>
+                <Route path="/alerts" element={<Alerts />} />
               </Route>
 
               <Route element={<ProtectedRoute permission="catalog:list" />}>

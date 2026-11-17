@@ -89,3 +89,17 @@ export class ListCompaniesDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   perPage?: number;
 }
+
+export class CompanyContactDto {
+  @IsString() @MinLength(2, { message: 'Informe o nome do contato.' })
+  name!: string;
+
+  @IsOptional() @IsString()
+  phone?: string;
+
+  @IsOptional() @EmptyToUndefined() @IsEmail({}, { message: 'E-mail inválido.' })
+  email?: string;
+
+  @IsOptional() @IsString()
+  department?: string;
+}

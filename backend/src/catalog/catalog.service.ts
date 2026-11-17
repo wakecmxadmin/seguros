@@ -71,7 +71,27 @@ export const CATALOG_ENTITIES = {
     searchFields: ['name', 'code'],
     orderBy: [{ name: 'asc' }],
   },
+  'coverage-emails': {
+    model: 'coverageEmail',
+    label: 'E-mail',
+    searchFields: ['email', 'notes'],
+    orderBy: [{ email: 'asc' }],
+    include: { coverage: { select: { id: true, name: true } } },
+  },
+  /**
+   * Só leitura: as coberturas têm cadastro próprio (com taxas e permissões
+   * `coverage:*`); aqui entram apenas para alimentar selects de outros cadastros.
+   */
+  coverages: {
+    model: 'coverage',
+    label: 'Cobertura',
+    searchFields: ['name'],
+    orderBy: [{ name: 'asc' }],
+    readOnly: true,
+  },
 } as const;
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type CatalogEntity = keyof typeof CATALOG_ENTITIES;
 
@@ -88,6 +108,26 @@ export class CatalogService {
       throw new NotFoundException(`Cadastro "${entity}" não existe.`);
     }
     return config;
+  }
+
+  /** Bloqueia escrita nas entidades expostas só para leitura. */
+  private writable(entity: string) {
+    const config = this.config(entity);
+    if ('readOnly' in config && config.readOnly) {
+      throw new BadRequestException(`${config.label} não é editável por aqui.`);
+    }
+    return config;
+  }
+
+  /** Ajustes por entidade antes de gravar. */
+  private normalize(entity: string, data: any) {
+    if (entity === 'coverage-emails' && data && 'email' in data) {
+      const email = String(data.email ?? '').trim().toLowerCase();
+      // O legado aceitava qualquer texto como e-mail (docs/18 § B.1).
+      if (!EMAIL.test(email)) throw new BadRequestException('Informe um e-mail válido.');
+      return { ...data, email };
+    }
+    return data;
   }
 
   private delegate(entity: string): any {
@@ -136,7 +176,8 @@ export class CatalogService {
   }
 
   async create(entity: string, data: any, authorId: string, ctx: RequestContext) {
-    const config = this.config(entity);
+    const config = this.writable(entity);
+    data = this.normalize(entity, data);
     try {
       const created = await this.delegate(entity).create({ data });
       await this.audit.record({
@@ -154,7 +195,8 @@ export class CatalogService {
   }
 
   async update(entity: string, id: string, data: any, authorId: string, ctx: RequestContext) {
-    const config = this.config(entity);
+    const config = this.writable(entity);
+    data = this.normalize(entity, data);
     const before = await this.delegate(entity).findUnique({ where: { id } });
     if (!before) throw new NotFoundException(`${config.label} não encontrado.`);
 
@@ -176,7 +218,7 @@ export class CatalogService {
   }
 
   async remove(entity: string, id: string, authorId: string, ctx: RequestContext) {
-    const config = this.config(entity);
+    const config = this.writable(entity);
     const before = await this.delegate(entity).findUnique({ where: { id } });
     if (!before) throw new NotFoundException(`${config.label} não encontrado.`);
 
@@ -238,7 +280,7 @@ export class CatalogService {
 
     return items.map((i: any) => ({
       id: i.id,
-      label: i.name ?? i.code,
+      label: i.name ?? i.email ?? i.code,
       code: i.code ?? null,
       modal: i.modal ?? null,
     }));

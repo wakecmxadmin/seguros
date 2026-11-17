@@ -70,7 +70,39 @@ export class ListEndorsementsDto {
   @IsOptional() @IsDateString() to?: string;
   /** 'true' traz apenas provisórias com saldo disponível. */
   @IsOptional() @IsString() withBalance?: string;
+  /** 'true' traz só definitivas com prorrogação ativa ("Definitivas em Prorrogação"). */
+  @IsOptional() @IsString() extended?: string;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) perPage?: number;
+}
+
+/**
+ * Seleção da "Impressão/Arquivo de Provisórias e Definitivas" do legado:
+ * faixa de averbação + seguradora (+ período, que o legado não tinha).
+ */
+export class EndorsementSelectionDto {
+  @IsEnum(EndorsementType, { message: 'Escolha provisórias ou definitivas.' })
+  type: EndorsementType;
+
+  @IsOptional() @EmptyToUndefined() @IsUUID('4') insurerId?: string;
+  @IsOptional() @EmptyToUndefined() @IsEnum(QuoteKind) kind?: QuoteKind;
+  @IsOptional() @EmptyToUndefined() @Type(() => Number) @IsInt() @Min(0) numberFrom?: number;
+  @IsOptional() @EmptyToUndefined() @Type(() => Number) @IsInt() @Min(0) numberTo?: number;
+  @IsOptional() @EmptyToUndefined() @IsDateString() from?: string;
+  @IsOptional() @EmptyToUndefined() @IsDateString() to?: string;
+}
+
+export class IssueExtensionDto {
+  @IsOptional() @EmptyToUndefined() @IsDateString() issuedAt?: string;
+  @IsOptional() @EmptyToUndefined() @IsDateString() coverageUntil?: string;
+  /** Sobrescreve o percentual dos Parâmetros nesta prorrogação. */
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0.01, { message: 'Percentual inválido.' })
+  percent?: number;
+  @IsOptional() @EmptyToUndefined() @IsString() notes?: string;
+}
+
+export class CancelExtensionDto {
+  @IsString() @MinLength(3, { message: 'Informe o motivo do cancelamento.' })
+  reason: string;
 }

@@ -61,8 +61,8 @@ export interface CalculationInput {
    * Agravo, em %: o desconto que a seguradora concede sobre o prêmio dela,
    * reduzindo o valor que a corretora efetivamente paga.
    *
-   * Confirmado pelo cliente em 03/11/2026 — importação 0,25 %, exportação
-   * 0,30 %. É o que explica as colunas `Dif USD` e `% de Rentabilidade` da
+   * Importação 25 %, exportação 30 % — conferido em 35 numerários pagos do
+   * legado (docs/19-legado-validacoes.md). É o que explica as colunas `Dif USD` e `% de Rentabilidade` da
    * Planilha Produção do legado: o cliente paga o prêmio cheio e a seguradora
    * recebe menos. Vem dos Parâmetros quando não informado.
    */

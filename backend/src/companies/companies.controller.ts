@@ -4,7 +4,12 @@ import {
 import { CompanyRoleType } from '@prisma/client';
 import type { Request } from 'express';
 import { CompaniesService } from './companies.service';
-import { CreateCompanyDto, ListCompaniesDto, UpdateCompanyDto } from './dto/companies.dto';
+import {
+  CompanyContactDto,
+  CreateCompanyDto,
+  ListCompaniesDto,
+  UpdateCompanyDto,
+} from './dto/companies.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -64,5 +69,45 @@ export class CompaniesController {
     @Req() req: Request,
   ) {
     return this.companies.remove(id, authorId, context(req));
+  }
+
+  @RequirePermissions('company:list')
+  @Get(':id/contacts')
+  contacts(@Param('id', ParseUUIDPipe) id: string) {
+    return this.companies.contacts(id);
+  }
+
+  @RequirePermissions('company:update')
+  @Post(':id/contacts')
+  createContact(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CompanyContactDto,
+    @CurrentUser('id') authorId: string,
+    @Req() req: Request,
+  ) {
+    return this.companies.saveContact(id, null, dto, authorId, context(req));
+  }
+
+  @RequirePermissions('company:update')
+  @Patch(':id/contacts/:contactId')
+  updateContact(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+    @Body() dto: CompanyContactDto,
+    @CurrentUser('id') authorId: string,
+    @Req() req: Request,
+  ) {
+    return this.companies.saveContact(id, contactId, dto, authorId, context(req));
+  }
+
+  @RequirePermissions('company:update')
+  @Delete(':id/contacts/:contactId')
+  removeContact(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('contactId', ParseUUIDPipe) contactId: string,
+    @CurrentUser('id') authorId: string,
+    @Req() req: Request,
+  ) {
+    return this.companies.removeContact(id, contactId, authorId, context(req));
   }
 }

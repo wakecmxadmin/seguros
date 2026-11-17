@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AlertTriangle, Anchor, FilePlus2, History, Ship } from 'lucide-react';
+import { AlertTriangle, Anchor, FilePlus2, History, Printer, Ship } from 'lucide-react';
 import {
   Dialog,
   DialogBody,
@@ -20,6 +20,7 @@ import { formatDate, formatMoney, parseNumber } from '@/lib/format';
 import { formatDateTime } from '@/lib/utils';
 import { useAuth } from '@/stores/auth';
 import { POSITION_LABEL, TYPE_LABEL } from './EndorsementList';
+import { EndorsementExtensions } from './EndorsementExtensions';
 
 interface EndorsementDrawerProps {
   id: string;
@@ -163,6 +164,8 @@ export function EndorsementDrawer({ id, onClose }: EndorsementDrawerProps) {
                   </>
                 )}
 
+                {!isProvisional && <EndorsementExtensions endorsement={data} />}
+
                 {/* Comissões */}
                 {data.commissions?.length > 0 && (
                   <>
@@ -232,6 +235,16 @@ export function EndorsementDrawer({ id, onClose }: EndorsementDrawerProps) {
                         </option>
                       ))}
                   </Select>
+                )}
+
+                {!isProvisional && data.position !== 'CANCELED' && can('document:generate') && (
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open(`/print/endorsements/${id}`, '_blank', 'noopener')}
+                  >
+                    <Printer className="h-4 w-4" />
+                    {data.quote.kind === 'EXPORT' ? 'Solicitação de cobertura' : 'Certificado'}
+                  </Button>
                 )}
 
                 {isProvisional && hasBalance && can('endorsement:issue_final') && (

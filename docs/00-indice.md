@@ -19,6 +19,11 @@ Nenhum dado foi criado, alterado ou removido durante o mapeamento.
 | [11-dicionario-dados.md](11-dicionario-dados.md) | Campos reais do banco legado, extraídos do bundle |
 | [12-reuniao-cliente.md](12-reuniao-cliente.md) | Dores e regras de negócio levantadas na reunião |
 | [13-sigra-campos-necessarios.md](13-sigra-campos-necessarios.md) | Campos a puxar do SIGRA por documento (BL, Invoice, CE Mercante, TFA, câmbio), status do mapeamento |
+| [15-legado-processo.md](15-legado-processo.md) | Tela de processo (cotação/provisória/definitiva), abas, listagens, status × posição, sinistros e cartas de protesto |
+| [16-legado-documentos.md](16-legado-documentos.md) | Proposta (placeholders dos .docx), recibo, certificado, emitir cobertura |
+| [17-legado-financeiro.md](17-legado-financeiro.md) | Numerário, carta de numerário, IRB/RME, intermediação, fechamento ("Emissão NF") |
+| [18-legado-relatorios-e-sistema.md](18-legado-relatorios-e-sistema.md) | Rankings, Planilha Produção, impressão/arquivo de provisórias e definitivas, cadastros e telas de sistema restantes |
+| [19-legado-validacoes.md](19-legado-validacoes.md) | Fórmulas e comportamentos conferidos contra dados reais (rankings, numerário, agravo, câmbio, defaults) |
 | [SIGRA_DB.md](SIGRA_DB.md) | Schema, tabelas e conexão do banco externo `sigraweb` (SIGRA) |
 
 ## Stack alvo (mesmo padrão dos demais projetos em `dev/wake`)

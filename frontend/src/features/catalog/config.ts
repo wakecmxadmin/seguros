@@ -174,6 +174,23 @@ export const CATALOGS: Record<string, CatalogConfig> = {
       ACTIVE_FIELD,
     ],
   },
+
+  'coverage-emails': {
+    key: 'coverage-emails',
+    label: 'E-mail',
+    plural: 'E-mails por cobertura',
+    description:
+      'Destinatários associados a cada cobertura. No legado a cobertura era texto livre e o e-mail não era validado; aqui ela vem do cadastro de Coberturas e o mesmo e-mail pode servir a várias.',
+    fields: [
+      { name: 'email', label: 'E-mail', type: 'text', required: true, span: 2, inTable: true, placeholder: 'nome@empresa.com.br' },
+      {
+        name: 'coverageId', label: 'Cobertura', type: 'select', required: true,
+        optionsFrom: 'coverages', inTable: true,
+      },
+      { name: 'notes', label: 'Observação', type: 'text', span: 2 },
+      ACTIVE_FIELD,
+    ],
+  },
 };
 
 /** Agrupamento da navegação lateral da tela de cadastros. */

@@ -13,7 +13,11 @@ import {
   Ship,
   Wallet,
   X,
+  BarChart3,
+  BellRing,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { alertsQuery } from '@/features/alerts/Alerts';
 import { Brand } from './AuthLayout';
 import { useAuth } from '@/stores/auth';
 import { cn, initials } from '@/lib/utils';
@@ -41,6 +45,12 @@ const NAV: NavGroup[] = [
   {
     title: 'Operação',
     items: [
+      {
+        label: 'Pendências',
+        to: '/alerts',
+        icon: BellRing,
+        anyPermission: ['quote:list', 'endorsement:list', 'policy:list'],
+      },
       { label: 'Cotações', to: '/quotes', icon: Ship, permission: 'quote:list' },
       { label: 'Averbações', to: '/endorsements', icon: FileText, permission: 'endorsement:list' },
       {
@@ -56,6 +66,12 @@ const NAV: NavGroup[] = [
     items: [
       { label: 'Numerário', to: '/cash-requests', icon: Wallet, permission: 'cash_request:create' },
       { label: 'Comissões', to: '/commissions', icon: Receipt, permission: 'commission:list' },
+      {
+        label: 'Relatórios',
+        to: '/reports',
+        icon: BarChart3,
+        anyPermission: ['report:production', 'report:ranking'],
+      },
     ],
   },
   {
@@ -87,6 +103,10 @@ export function AppLayout() {
         (!i.anyPermission || i.anyPermission.some((p) => can(p))),
     ),
   })).filter((g) => g.items.length > 0);
+
+  // Número ao lado de "Pendências" — mesma consulta da tela, compartilhada pelo cache.
+  const showsAlerts = ['quote:list', 'endorsement:list', 'policy:list'].some((p) => can(p));
+  const { data: alerts } = useQuery({ ...alertsQuery, enabled: showsAlerts });
 
   async function handleSignOut() {
     await signOut();
@@ -141,6 +161,11 @@ export function AppLayout() {
                     >
                       <item.icon className="h-[17px] w-[17px] shrink-0" />
                       {item.label}
+                      {item.to === '/alerts' && !!alerts?.total && (
+                        <span className="tabular ml-auto rounded-full bg-danger px-1.5 py-px text-[11px] font-semibold text-white">
+                          {alerts.total > 99 ? '99+' : alerts.total}
+                        </span>
+                      )}
                     </NavLink>
                   </li>
                 ))}

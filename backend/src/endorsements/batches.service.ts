@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { SettingsService } from '../settings/settings.service';
 import type { RequestContext } from '../auth/auth.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { csvEndorsementInclude, endorsementsCsv, fileSlug } from './endorsement-csv';
 
 const batchInclude = {
   insurer: { select: { id: true, legalName: true, tradeName: true } },
@@ -161,98 +162,20 @@ export class BatchesService {
     return updated;
   }
 
-  /**
-   * Arquivo do lote em CSV.
-   *
-   * As colunas seguem o que foi citado na reunião — nº do documento, navio,
-   * data — mais os campos que o legado usava no arquivo de remessa.
-   * **O layout definitivo ainda precisa ser confirmado com cada seguradora**
-   * (ver novas_tarefas.md, item 28).
-   */
+  /** Arquivo do lote em CSV — layout em `endorsement-csv.ts`. */
   async exportCsv(id: string) {
     const batch = await this.prisma.endorsementBatch.findUnique({
       where: { id },
       include: {
         insurer: true,
-        items: {
-          include: {
-            endorsement: {
-              include: {
-                currency: { select: { code: true } },
-                vessel: { select: { name: true } },
-                quote: {
-                  select: {
-                    number: true,
-                    kind: true,
-                    modal: true,
-                    client: { select: { legalName: true, document: true } },
-                    originCountry: { select: { name: true } },
-                    destinationCountry: { select: { name: true } },
-                  },
-                },
-              },
-            },
-          },
-        },
+        items: { include: { endorsement: { include: csvEndorsementInclude } } },
       },
     });
     if (!batch) throw new NotFoundException('Lote não encontrado.');
 
-    const header = [
-      'Averbacao',
-      'Tipo',
-      'Data',
-      'Processo',
-      'Cliente',
-      'CNPJ',
-      'Conhecimento',
-      'Container',
-      'Navio',
-      'Origem',
-      'Destino',
-      'Modal',
-      'Moeda',
-      'ImportanciaSegurada',
-      'PremioSeguradora',
-      'DataAtracacao',
-    ];
-
-    const rows = batch.items.map(({ endorsement: e }) => [
-      e.number,
-      e.type === EndorsementType.PROVISIONAL ? 'Provisoria' : 'Definitiva',
-      e.issuedAt.toISOString().slice(0, 10),
-      String(e.quote.number),
-      e.quote.client.legalName,
-      e.quote.client.document ?? '',
-      e.blNumber ?? '',
-      e.containerNumber ?? '',
-      e.vessel?.name ?? '',
-      e.quote.originCountry?.name ?? '',
-      e.quote.destinationCountry?.name ?? '',
-      e.quote.modal,
-      e.currency.code,
-      Number(e.insuredAmount).toFixed(2),
-      Number(e.premiumInsurer).toFixed(2),
-      e.berthingDate ? e.berthingDate.toISOString().slice(0, 10) : '',
-    ]);
-
-    // Ponto e vírgula + BOM: o Excel em pt-BR abre direto, sem assistente.
-    const escape = (value: string) =>
-      /[";\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-
-    const csv = [header, ...rows]
-      .map((row) => row.map((cell) => escape(String(cell))).join(';'))
-      .join('\r\n');
-
-    const insurerSlug = (batch.insurer.tradeName ?? batch.insurer.legalName)
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .replace(/[^a-zA-Z0-9]+/g, '-')
-      .toLowerCase();
-
     return {
-      filename: `averbacoes-${batch.period}-${insurerSlug}.csv`,
-      content: `﻿${csv}`,
+      filename: `averbacoes-${batch.period}-${fileSlug(batch.insurer.tradeName ?? batch.insurer.legalName)}.csv`,
+      content: endorsementsCsv(batch.items.map((i) => i.endorsement)),
     };
   }
 

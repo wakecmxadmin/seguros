@@ -50,10 +50,13 @@ export default function Companies({
   fixedRole,
   title,
   description,
+  newLabel,
 }: {
   fixedRole?: RoleKey;
   title?: string;
   description?: string;
+  /** Rótulo do botão de criação na listagem filtrada ("Nova seguradora"). */
+  newLabel?: string;
 } = {}) {
   const { can } = useAuth();
   const queryClient = useQueryClient();
@@ -180,7 +183,7 @@ export default function Companies({
         {canEdit && (
           <Button size="sm" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
-            {fixedRole ? 'Nova seguradora' : 'Nova empresa'}
+            {newLabel ?? 'Nova empresa'}
           </Button>
         )}
       </header>
@@ -224,13 +227,15 @@ export default function Companies({
           <EmptyState
             title="Nenhuma empresa encontrada"
             description={
-              search || role ? 'Ajuste a busca ou o filtro.' : 'Cadastre a primeira empresa.'
+              search || (role && !fixedRole)
+                ? 'Ajuste a busca ou o filtro.'
+                : 'Nenhum registro cadastrado ainda.'
             }
             action={
-              canEdit && !search && !role ? (
+              canEdit && !search && (!role || fixedRole) ? (
                 <Button size="sm" onClick={() => setCreating(true)}>
                   <Plus className="h-4 w-4" />
-                  Nova empresa
+                  {newLabel ?? 'Nova empresa'}
                 </Button>
               ) : undefined
             }

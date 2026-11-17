@@ -1,10 +1,12 @@
 import {
-  Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards,
+  Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { EndorsementsService } from './endorsements.service';
+import { EndorsementOutputService } from './endorsement-output.service';
 import {
-  ChangePositionDto, IssueFinalDto, IssueProvisionalDto, ListEndorsementsDto,
+  CancelExtensionDto, ChangePositionDto, EndorsementSelectionDto, IssueExtensionDto,
+  IssueFinalDto, IssueProvisionalDto, ListEndorsementsDto,
 } from './dto/endorsements.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -19,7 +21,10 @@ const context = (req: Request) => ({
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('endorsements')
 export class EndorsementsController {
-  constructor(private endorsements: EndorsementsService) {}
+  constructor(
+    private endorsements: EndorsementsService,
+    private output: EndorsementOutputService,
+  ) {}
 
   @RequirePermissions('endorsement:list')
   @Get()
@@ -31,6 +36,27 @@ export class EndorsementsController {
   @Get('summary')
   summary(@CurrentUser() user: AuthenticatedUser) {
     return this.endorsements.summary(user);
+  }
+
+  /** Relação para impressão por faixa (`ImpressaoProvisoria/Definitiva`). */
+  @RequirePermissions('document:generate')
+  @Get('selection/print')
+  printSelection(@Query() filters: EndorsementSelectionDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.output.printData(filters, user);
+  }
+
+  /** Arquivo de remessa por faixa (`ArquivoProvisoria/Definitiva`). */
+  @RequirePermissions('report:export')
+  @Get('selection/file')
+  async fileSelection(
+    @Query() filters: EndorsementSelectionDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const { filename, content } = await this.output.file(filters, user);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(content);
   }
 
   @RequirePermissions('endorsement:list')
@@ -68,5 +94,28 @@ export class EndorsementsController {
     @Req() req: Request,
   ) {
     return this.endorsements.changePosition(id, dto, user, context(req));
+  }
+
+  @RequirePermissions('endorsement:issue_final')
+  @Post(':id/extensions')
+  issueExtension(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: IssueExtensionDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.endorsements.issueExtension(id, dto, user, context(req));
+  }
+
+  @RequirePermissions('endorsement:change_position')
+  @Patch(':id/extensions/:extensionId/cancel')
+  cancelExtension(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('extensionId', ParseUUIDPipe) extensionId: string,
+    @Body() dto: CancelExtensionDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.endorsements.cancelExtension(id, extensionId, dto, user, context(req));
   }
 }

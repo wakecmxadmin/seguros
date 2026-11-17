@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Anchor, Search, Wallet } from 'lucide-react';
+import { AlertTriangle, Anchor, Printer, Search, Wallet } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/stores/auth';
 import { Page } from '@/components/ui/page';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +12,7 @@ import { EmptyState, Loading, LoadError } from '@/components/ui/states';
 import { api, errorMessage } from '@/lib/api';
 import { formatDate, formatMoney } from '@/lib/format';
 import { EndorsementDrawer } from './EndorsementDrawer';
+import { EndorsementSelectionDialog } from './EndorsementSelectionDialog';
 
 export interface EndorsementRow {
   id: string;
@@ -28,6 +32,8 @@ export interface EndorsementRow {
   premiumInsurer: string;
   balance: string;
   balancePercent: string;
+  /** Prorrogações ativas (só definitivas). */
+  extensions?: { sequence: number }[];
   currency: { code: string } | null;
   vessel: { id: string; name: string } | null;
   quote: {
@@ -57,10 +63,14 @@ const POSITION_VARIANT: Record<string, 'warning' | 'neutral' | 'success' | 'dang
 };
 
 export default function EndorsementList() {
+  const { can } = useAuth();
+  const [selecting, setSelecting] = useState(false);
   const [search, setSearch] = useState('');
-  const [type, setType] = useState('');
-  const [position, setPosition] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Filtros iniciais pela URL — a tela de Pendências abre a listagem já filtrada.
+  const [params] = useSearchParams();
+  const [type, setType] = useState(params.get('type') ?? '');
+  const [position, setPosition] = useState(params.get('position') ?? '');
+  const [selectedId, setSelectedId] = useState<string | null>(params.get('open'));
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['endorsements', search, type, position],
@@ -68,7 +78,7 @@ export default function EndorsementList() {
       const { data } = await api.get('/endorsements', {
         params: {
           ...(search ? { search } : {}),
-          ...(type ? { type } : {}),
+          ...(type === 'EXTENDED' ? { extended: 'true' } : type ? { type } : {}),
           ...(position ? { position } : {}),
           perPage: 50,
         },
@@ -131,6 +141,11 @@ export default function EndorsementList() {
           <Badge variant={row.type === 'PROVISIONAL' ? 'provisional' : 'final'} dot>
             {TYPE_LABEL[row.type]}
           </Badge>
+          {!!row.extensions?.length && (
+            <Badge variant="warning" title="Prorrogada">
+              PRG-{row.extensions[row.extensions.length - 1].sequence}
+            </Badge>
+          )}
         </div>
       ),
     },
@@ -220,6 +235,14 @@ export default function EndorsementList() {
     <Page
       title="Averbações"
       description="Provisórias abrem saldo; definitivas consomem esse saldo até zerá-lo."
+      actions={
+        (can('document:generate') || can('report:export')) && (
+          <Button size="sm" variant="outline" onClick={() => setSelecting(true)}>
+            <Printer className="h-4 w-4" />
+            Impressão e arquivo
+          </Button>
+        )
+      }
     >
       {summary && (
         <div className="mb-4 flex flex-wrap gap-2.5">
@@ -274,6 +297,7 @@ export default function EndorsementList() {
             { value: '', label: 'Todas' },
             { value: 'PROVISIONAL', label: 'Provisórias' },
             { value: 'FINAL', label: 'Definitivas' },
+            { value: 'EXTENDED', label: 'Em prorrogação' },
           ].map((option) => (
             <button
               key={option.value}
@@ -349,6 +373,7 @@ export default function EndorsementList() {
       {selectedId && (
         <EndorsementDrawer id={selectedId} onClose={() => setSelectedId(null)} />
       )}
+      {selecting && <EndorsementSelectionDialog onClose={() => setSelecting(false)} />}
     </Page>
   );
 }

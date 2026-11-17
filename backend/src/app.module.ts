@@ -16,6 +16,9 @@ import { FxModule } from './fx/fx.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { EndorsementsModule } from './endorsements/endorsements.module';
 import { FinanceModule } from './finance/finance.module';
+import { ReportsModule } from './reports/reports.module';
+import { DocumentsModule } from './documents/documents.module';
+import { AlertsModule } from './alerts/alerts.module';
 import { SettingsModule } from './settings/settings.module';
 import { StorageModule } from './storage/storage.module';
 import { GmailModule } from './gmail/gmail.module';
@@ -42,6 +45,9 @@ import { SigraModule } from './sigra/sigra.module';
     QuotesModule,
     EndorsementsModule,
     FinanceModule,
+    ReportsModule,
+    DocumentsModule,
+    AlertsModule,
     SettingsModule,
     GmailModule,
     CommunicationsModule,

@@ -18,6 +18,7 @@ import { formatDocument } from '@/lib/utils';
 import { formatRate, parseNumber } from '@/lib/format';
 import { CompanyRole } from '@/lib/enums';
 import type { Company } from './Companies';
+import { CompanyContacts } from './CompanyContacts';
 
 type RoleKey = keyof typeof CompanyRole;
 
@@ -325,6 +326,8 @@ export function CompanyDialog({
                 Empresa ativa
               </label>
             </div>
+
+            {isEditing && <CompanyContacts companyId={company!.id} />}
           </DialogBody>
 
           <DialogFooter>

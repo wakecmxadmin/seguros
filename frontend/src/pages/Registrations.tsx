@@ -35,6 +35,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { to: 'companies', label: 'Empresas', permission: 'company:list' },
       { to: 'employees', label: 'Funcionários', permission: 'employee:list' },
+      { to: 'carriers', label: 'Transportadoras', permission: 'company:list' },
     ],
   },
   {
@@ -45,6 +46,7 @@ const SECTIONS: NavSection[] = [
       { to: 'policies', label: 'Apólices', permission: 'policy:list' },
       { to: 'coverages', label: 'Coberturas', permission: 'coverage:list' },
       { to: 'client-rates', label: 'Taxas por cliente', permission: 'policy:list' },
+      { to: 'coverage-emails', label: 'E-mails por cobertura', permission: 'catalog:list' },
     ],
   },
   {
@@ -125,6 +127,18 @@ export default function Registrations() {
                   fixedRole="INSURER"
                   title="Seguradoras"
                   description="Companhias que emitem as apólices. É o mesmo cadastro de Empresas, filtrado pelo papel — uma seguradora que também seja parceira não precisa ser cadastrada duas vezes."
+                  newLabel="Nova seguradora"
+                />
+              }
+            />
+            <Route
+              path="carriers"
+              element={
+                <Companies
+                  fixedRole="CARRIER"
+                  title="Transportadoras"
+                  description="Quem transporta a carga. Mesmo cadastro de Empresas, filtrado pelo papel — os contatos ficam na própria empresa."
+                  newLabel="Nova transportadora"
                 />
               }
             />

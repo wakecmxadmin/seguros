@@ -8,7 +8,12 @@ import { CompanyRoleType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { RequestContext } from '../auth/auth.service';
-import { CreateCompanyDto, ListCompaniesDto, UpdateCompanyDto } from './dto/companies.dto';
+import {
+  CompanyContactDto,
+  CreateCompanyDto,
+  ListCompaniesDto,
+  UpdateCompanyDto,
+} from './dto/companies.dto';
 
 const selection = {
   id: true,
@@ -228,6 +233,73 @@ export class CompaniesService {
       ...ctx,
     });
 
+    return { ok: true };
+  }
+
+  // -------------------------------------------------------------------------
+  // Contatos (aba "Contatos" do legado)
+  // -------------------------------------------------------------------------
+
+  async contacts(companyId: string) {
+    return this.prisma.companyContact.findMany({
+      where: { companyId },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async saveContact(
+    companyId: string,
+    contactId: string | null,
+    dto: CompanyContactDto,
+    authorId: string,
+    ctx: RequestContext,
+  ) {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Empresa não encontrada.');
+
+    const data = {
+      name: dto.name.trim(),
+      phone: dto.phone?.trim() || null,
+      email: dto.email?.trim().toLowerCase() || null,
+      department: dto.department?.trim() || null,
+    };
+
+    let before: Prisma.CompanyContactGetPayload<object> | null = null;
+    if (contactId) {
+      before = await this.prisma.companyContact.findFirst({ where: { id: contactId, companyId } });
+      if (!before) throw new NotFoundException('Contato não encontrado.');
+    }
+
+    const contact = contactId
+      ? await this.prisma.companyContact.update({ where: { id: contactId }, data })
+      : await this.prisma.companyContact.create({ data: { ...data, companyId } });
+
+    await this.audit.record({
+      userId: authorId,
+      action: contactId ? 'company_contact_updated' : 'company_contact_created',
+      entity: 'Company',
+      entityId: companyId,
+      before,
+      after: contact,
+      ...ctx,
+    });
+
+    return contact;
+  }
+
+  async removeContact(companyId: string, contactId: string, authorId: string, ctx: RequestContext) {
+    const before = await this.prisma.companyContact.findFirst({ where: { id: contactId, companyId } });
+    if (!before) throw new NotFoundException('Contato não encontrado.');
+
+    await this.prisma.companyContact.delete({ where: { id: contactId } });
+    await this.audit.record({
+      userId: authorId,
+      action: 'company_contact_deleted',
+      entity: 'Company',
+      entityId: companyId,
+      before,
+      ...ctx,
+    });
     return { ok: true };
   }
 

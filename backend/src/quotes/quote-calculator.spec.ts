@@ -198,22 +198,23 @@ describe('calculateQuote — agravo da seguradora', () => {
   });
 
   it('o agravo é desconto: abate do valor a pagar à seguradora', () => {
-    // Confirmado pelo cliente em 03/11/2026 — importação 0,25 %.
-    const result = calculateQuote({ ...base, payableDiscountPercent: 0.25 });
-    // 50,00 × 0,25 % = 0,125 → 0,13; o que a corretora paga é o resto.
-    expect(result.payableDiscount).toBe(0.13);
-    expect(result.insurerPayable).toBe(49.87);
+    // Importação 25 % — conferido em 35 numerários pagos do legado
+    // (`vlDolarAPagarAgravo20` = `vlDolarAPagar` × 0,75), ver docs/19.
+    const result = calculateQuote({ ...base, payableDiscountPercent: 25 });
+    // 50,00 × 25 % = 12,50; o que a corretora paga é o resto.
+    expect(result.payableDiscount).toBe(12.5);
+    expect(result.insurerPayable).toBe(37.5);
   });
 
   it('usa o percentual de exportação quando informado', () => {
-    // Exportação 0,30 % sobre um prêmio maior, para checar o arredondamento.
+    // Exportação 30 % sobre um prêmio maior, para checar o arredondamento.
     const result = calculateQuote({
       ...base,
       kind: QuoteKind.EXPORT,
       cifValue: 10000,
-      payableDiscountPercent: 0.3,
+      payableDiscountPercent: 30,
     });
-    expect(result.payableDiscount).toBe(money(result.premiumInsurer * 0.003));
+    expect(result.payableDiscount).toBe(money(result.premiumInsurer * 0.3));
     expect(result.insurerPayable).toBe(
       money(result.premiumInsurer - result.payableDiscount),
     );
@@ -221,7 +222,7 @@ describe('calculateQuote — agravo da seguradora', () => {
 
   it('o agravo entra na margem bruta — é a rentabilidade do processo', () => {
     const semAgravo = calculateQuote(base);
-    const comAgravo = calculateQuote({ ...base, payableDiscountPercent: 0.25 });
+    const comAgravo = calculateQuote({ ...base, payableDiscountPercent: 25 });
     expect(comAgravo.grossMargin).toBe(
       money(semAgravo.grossMargin + comAgravo.payableDiscount),
     );

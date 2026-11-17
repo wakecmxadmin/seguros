@@ -1,8 +1,8 @@
 # Tarefas
 
-`***************-----` **76%**
+`*************-------` **67%**
 
-**Total:** 51  ·  **Pendentes:** 12  ·  **Feitas (aguardando fechamento):** 5  ·  **Concluídas:** 34
+**Total:** 64  ·  **Pendentes:** 21  ·  **Feitas (aguardando fechamento):** 9  ·  **Concluídas:** 34
 
 ---
 
@@ -154,6 +154,114 @@
   existe — o cadastro só tem nome e código; `imo` e `buildYear` são campos novos nossos,
   a preencher manualmente.
 
+### Paridade com o legado
+
+Objetivo (16/11/2026): mapear **tudo** que existe no legado — telas, fluxos, botões, cálculos,
+números, contas e tabelas — e reproduzir no sistema novo. Mapeamento antes de implementação.
+
+- [ ] **56.** **Mapear as rotas fora do menu que nunca foram acessadas**: `AverbacaoProvisoria`,
+  `AverbacaoDefinitiva`, `Certificado`, `Recibo`, `Seguro`, `Cobertura`, `Processo`, `PlanilhaIrb`,
+  `IrbEmitida`, `IrbEmitidaSelecao`, `EmissaoRme`, `ProcessosProrrogacoes`, `NumerarioImpressao`,
+  `ObservacaoSelecao`, `EmpresaSelecao`, Sinistros e Cartas de Protesto. Campos, filtros, colunas e
+  ações de cada uma. Só leitura.
+
+- [ ] **57.** **Inventariar os botões e ações de cada linha/tela já conhecida** — listagens de
+  Novas, Em Aberto, Provisórias/Definitivas, telas de cotação, financeiro e relatórios: o que cada
+  ícone/botão faz, que modal abre, que endpoint chamaria (pelo bundle, sem disparar).
+
+- [ ] **58.** **Mapear cálculos, totais e tabelas** de cada tela fora da cotação (já coberta em
+  `docs/04-regras-calculo.md`): numerário, intermediação, IRB/RME, NF, rankings, Relatório/Planilha
+  de Produção, saldo e percentual de provisórias. Fórmulas conferidas contra valores reais
+  exibidos no legado, colunas e ordenação padrão de cada tabela.
+
+- [ ] **59.** **Gerar proposta e certificado** a partir dos Modelos de Proposta já importados
+  (`ProposalTemplate`, `.docx` no S3) — merge com os dados do processo, saída em PDF/DOCX.
+  — 17/11/2026: módulo `backend/src/documents`. **Proposta .docx**: botão "Proposta" na cotação
+  calculada; escolhe a versão vigente de Tipo × Cobertura, faz o merge `[campo]` com a mesma
+  sintaxe do legado (os 4 modelos de 2026 conferidos: nenhum marcador sobra) e calcula os seis
+  cenários `fobFr*` da estimativa com a regra do motor (impostos entram na I.S. sem prêmio; piso só
+  se a cotação aplicou mínimo). Marcador desconhecido não quebra: volta como aviso na tela e fica
+  na auditoria (`proposal_generated`). Marcador partido entre runs pelo Word é reconstituído.
+  **Certificado** (importação) e **Solicitação de cobertura** (exportação): botão na definitiva
+  abre `/print/endorsements/:id`, página de impressão (imprimir / salvar PDF pelo navegador, como
+  no legado), com os valores do domínio — corrigidos o ano da provisória, o "FOB+Frete" fixo e o
+  BL omitido no marítimo. Helper de **valor por extenso** pronto (`amount-in-words.ts`, testado).
+  25 testes. **Falta:** saída em **PDF da proposta** (precisa de conversor DOCX→PDF no servidor —
+  LibreOffice na VM ou serviço externo; decidir); **verso do certificado** (texto jurídico de 7
+  itens — copiar literal do legado, não redigir); **recibo** (bloqueado pela tarefa 68).
+
+- [x] **60.** **Impressão e Arquivo de Provisórias/Definitivas** (`ImpressaoProvisoria/Definitiva`,
+  `ArquivoProvisoria/Definitiva`).
+  — 17/11/2026: botão **Impressão e arquivo** em Averbações, com os filtros do legado (provisórias
+  ou definitivas, seguradora, faixa de averbação) + ramo e período. **Imprimir relação** abre
+  `/print/endorsement-selection` (A4 paisagem, totais por moeda, imprimir/salvar PDF);
+  **Gerar arquivo** baixa o CSV de remessa no mesmo layout do lote mensal (montagem extraída para
+  `endorsement-csv.ts`, compartilhada). Faixa pela parte numérica ("D-106493" = "106493"),
+  canceladas fora, teto de 2.000 linhas. ⚠️ O layout do PDF/CSV do legado vinha pronto do servidor
+  e não foi visto; o do CSV segue pendente de validação com as seguradoras (tarefa 28).
+
+- [ ] **61.** **Relatórios**: Relatório de Produção / Planilha Produção e Rankings por Apólice,
+  Cliente, Estado e Parceiro, com os mesmos números do legado e exportação para Excel.
+  — 17/11/2026: módulo `backend/src/reports` + tela **Financeiro → Relatórios** (`/reports`), com
+  abas Produção / Por cliente / Por parceiro / Por apólice / Por estado e exportação `.xlsx`
+  (`exceljs`, números como número — o legado mandava texto formatado). Base: definitivas não
+  canceladas do período. Fórmulas de `docs/19` em `production-math.ts` com 9 testes (agravo,
+  diferença, resultado com o caso real FRESNOMAQ 2720 = 946,58, arredondamento US$ → R$,
+  conversão de moeda ≠ USD). Total separado das linhas (no legado era o "último registro").
+  **Falta:** tipo *Prorrogada* (depende da 64); **IRB de importação** — o legado cobra US$ 10 por
+  processo e o nosso só tem `irbValue` na exportação (entra no bloco IRB/RME, tarefa 63);
+  conferir números contra o legado assim que houver definitivas no banco (hoje há zero).
+
+- [ ] **62.** **Emissão de NF e NF's Emitidas** (`Nf`, `NfEmitida`).
+
+- [ ] **63.** **Emissão IRB e RME** (resseguro) — `NumerariosChequeIRB`, `PlanilhaIrb`,
+  `IrbEmitida`, `EmissaoRme`.
+
+- [x] **64.** **Definitivas em Prorrogação** (`ProcessosProrrogacoes`) — o legado tem o tipo de
+  operação "Prorrogada", sem equivalente no sistema novo.
+  — 17/11/2026: model `EndorsementExtension` (várias por definitiva, `PRG-1`, `PRG-2`…, como o
+  `nuProrrogacao`), migration `20261117120000_contacts_emails_extensions`. Botão **Prorrogar** no
+  drawer da definitiva: data, "cobertura até" opcional, percentual (vazio = Parâmetro
+  **Prorrogação**, 20 %, regra conferida em 35 numerários) — cobra o % sobre os prêmios do cliente
+  e da seguradora, câmbio do dia. Cancelar exige motivo; ambos auditados. Listagem ganhou o filtro
+  **Em prorrogação** e o selo PRG. **Certificado/cobertura da prorrogação** com "PRG-n", prêmio e
+  data da prorrogação e o selo vermelho "PRORROGAÇÃO DE SEGURO". **Planilha Produção** ganhou o tipo
+  **Prorrogadas** (como o `cdTipo=2`; "Todos" segue só com definitivas): I.S. zerada, sem IRB,
+  comissão de parceiro pelo % da cotação. ⚠️ **Premissas a confirmar:** o lado da seguradora usar o
+  mesmo % (`vlProrrogadaSeguradoraDolar` não tinha fórmula visível) e a prorrogação não gerar
+  comissão nem numerário próprios (o numerário depende da tarefa 68).
+
+- [x] **65.** **Cadastros que faltam tela**: E-mails (destinatários por cobertura) e
+  Transportadoras.
+  — 17/11/2026: **Transportadoras** em Cadastros → Pessoas, sobre o cadastro único de Empresas
+  filtrado pelo papel (como Seguradoras). Novo model `CompanyContact` com a seção **Contatos**
+  (nome, setor, telefone, e-mail) no diálogo de qualquer empresa — a aba "Contatos Gerais" do
+  legado. **E-mails por cobertura** em Cadastros → Seguro (catálogo genérico, model
+  `CoverageEmail`): cobertura vem do cadastro (no legado era texto livre), e-mail validado e
+  normalizado, mesmo e-mail pode servir a várias coberturas. Como no legado, nenhuma outra tela
+  consome esses e-mails ainda.
+
+- [x] **66.** **Alertas/notificações** (módulo `notifications` de `docs/07-modulos.md`): pendência
+  vencendo, provisória sem definitiva, cotação parada, apólice a vencer.
+  — 17/11/2026: tela **Pendências** (`/alerts`, primeiro item de Operação, com contador no menu):
+  prazos de TFA/averbação vencidos ou vencendo, provisórias sem definitiva, cotações paradas
+  (em aberto/aprovadas sem alteração) e apólices a vencer. Calculadas na hora (sem tabela),
+  cada grupo respeita a permissão de leitura e o escopo do usuário; cada linha abre o registro
+  (a averbação abre direto no drawer). Limites em Parâmetros → **Pendências** (3, 30, 7 e 30 dias).
+  Sem e-mail/push por enquanto — depende do SMTP (tarefa 15).
+
+- [ ] **67.** **Decidir com o cliente** as três telas que no legado apontam para `#/emContrucao`:
+  Pagamento de Intermediação de Funcionário, Relatório de Saldo de Provisórias e Mapa.
+
+- [ ] **68.** **Rever o significado do Numerário** (achado em 17/11/2026 ao mapear o recibo). No
+  legado, numerário é a **cobrança ao cliente/parceiro** do prêmio do cliente em R$ ("Solicitamos
+  nos enviar o valor de R$ …"), com taxa do dólar do dia, valor recebido, diferença cambial
+  (versão 2+ abate o pagamento anterior), comissão Direta × Nota Fiscal e carta 1/2/3
+  (`docs/17` § 2). O pagamento à **seguradora** é outro fluxo (IRB/RME, "A pagar c/ agravo"). O
+  nosso `CashRequest` (tarefa 38) foi modelado como *valor devido à seguradora já com agravo*.
+  Decidir com o usuário: renomear o atual para "Pagamento à seguradora" e criar o numerário de
+  cobrança, ou reaproveitar. Bloqueia o **recibo** (59) e a **carta de numerário**.
+
 ---
 
 ## Concluídas
@@ -165,7 +273,12 @@
   pelo cliente** (aba *Parâmetros* do legado): o agravo é o **desconto que a Cia libera em cima do
   prêmio**, não acréscimo — o sinal estava invertido na nossa implementação. Percentuais:
   **importação 0,25 %**, **importação Fresno 0,25 %**, **exportação 0,30 %** (escala literal,
-  confirmada com o usuário — nada a ver com os "20"/"25" do nome do campo e da coluna). Implementado:
+  confirmada com o usuário — nada a ver com os "20"/"25" do nome do campo e da coluna).
+  **Corrigido em 16/11/2026:** a escala estava errada — "0,25" era fator. Em 35 numerários pagos do
+  legado, `vlDolarAPagarAgravo20` = `vlDolarAPagar` × 0,75 (desconto de **25 %**). Defaults passaram
+  a 25 % / 30 % e a migração `20261116190000_payable_discount_scale` converte parâmetros gravados,
+  agravo próprio de clientes e cotações já salvas (numerários emitidos ficam como estão).
+  Ver `docs/19-legado-validacoes.md`. Implementado:
   três parâmetros em `SettingsService` (`insurance.payable_discount_*_percent`), motor de cálculo
   com `payableDiscountPercent` abatendo do `insurerPayable`, margem bruta passando a usar o valor
   realmente pago (é a conta de `Dif USD` / `% de Rentabilidade` da Planilha Produção), numerário

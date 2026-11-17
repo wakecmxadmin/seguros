@@ -56,7 +56,8 @@ export function DialogHeader({
 }
 
 export function DialogBody({ children }: { children: React.ReactNode }) {
-  return <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>;
+  // `min-h-0`: sem ele o corpo não encolhe abaixo do conteúdo e o diálogo alto rola inteiro.
+  return <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">{children}</div>;
 }
 
 export function DialogFooter({ children }: { children: React.ReactNode }) {

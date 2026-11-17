@@ -18,11 +18,14 @@ import { SettingsService } from '../settings/settings.service';
 import type { RequestContext } from '../auth/auth.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import {
+  CancelExtensionDto,
   ChangePositionDto,
+  IssueExtensionDto,
   IssueFinalDto,
   IssueProvisionalDto,
   ListEndorsementsDto,
 } from './dto/endorsements.dto';
+import { extensionFigures } from './extension-math';
 
 const listInclude = {
   currency: { select: { id: true, code: true } },
@@ -38,6 +41,11 @@ const listInclude = {
       insurer: { select: { id: true, legalName: true, tradeName: true } },
       policy: { select: { id: true, number: true } },
     },
+  },
+  extensions: {
+    where: { canceledAt: null },
+    select: { sequence: true },
+    orderBy: { sequence: 'asc' },
   },
 } satisfies Prisma.EndorsementInclude;
 
@@ -96,6 +104,9 @@ export class EndorsementsService {
       ...(filters.withBalance === 'true'
         ? { type: EndorsementType.PROVISIONAL, balance: { gt: 0 } }
         : {}),
+      ...(filters.extended === 'true'
+        ? { type: EndorsementType.FINAL, extensions: { some: { canceledAt: null } } }
+        : {}),
     };
 
     const [items, total] = await Promise.all([
@@ -130,6 +141,8 @@ export class EndorsementsService {
         },
         positionHistory: { orderBy: { createdAt: 'desc' } },
         cashRequests: { orderBy: { createdAt: 'desc' } },
+        // Sobrescreve o include da listagem: no detalhe vêm também as canceladas.
+        extensions: { orderBy: { sequence: 'asc' } },
         commissions: {
           include: {
             company: { select: { id: true, legalName: true, tradeName: true } },
@@ -456,6 +469,131 @@ export class EndorsementsService {
         },
       });
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Prorrogação
+  // -------------------------------------------------------------------------
+
+  /**
+   * Prorroga uma definitiva: estende a cobertura cobrando um percentual dos
+   * prêmios dela (20 % no legado — `vlProrrogacaoCliente` = prêmio × 20 %,
+   * conferido em 35 numerários). Cada prorrogação ganha um sequencial próprio
+   * dentro da definitiva, como o `nuProrrogacao` do legado.
+   */
+  async issueExtension(
+    endorsementId: string,
+    dto: IssueExtensionDto,
+    user: AuthenticatedUser,
+    ctx: RequestContext,
+  ) {
+    const endorsement = await this.prisma.endorsement.findFirst({
+      where: { id: endorsementId, quote: this.scopeFor(user) },
+      include: { extensions: { select: { sequence: true } } },
+    });
+    if (!endorsement) throw new NotFoundException('Averbação não encontrada.');
+    if (endorsement.type !== EndorsementType.FINAL) {
+      throw new BadRequestException('Só a averbação definitiva pode ser prorrogada.');
+    }
+    if (endorsement.position === EndorsementPosition.CANCELED) {
+      throw new BadRequestException('Averbação cancelada não pode ser prorrogada.');
+    }
+
+    const issuedAt = dto.issuedAt ? new Date(dto.issuedAt) : new Date();
+    const coverageUntil = dto.coverageUntil ? new Date(dto.coverageUntil) : null;
+    if (issuedAt < endorsement.issuedAt) {
+      throw new BadRequestException('A prorrogação não pode ser anterior à definitiva.');
+    }
+    if (coverageUntil && coverageUntil < issuedAt) {
+      throw new BadRequestException('A nova vigência termina antes da data da prorrogação.');
+    }
+
+    const percent = dto.percent ?? (await this.settings.number('insurance.extension_percent'));
+    if (!(percent > 0)) {
+      throw new BadRequestException('Configure o percentual de prorrogação em Parâmetros.');
+    }
+
+    // Câmbio do dia da prorrogação (o `txDolarNumerarioProrrogada` do legado
+    // era próprio); sem cotação, mantém o da definitiva.
+    let exchangeRate = Number(endorsement.exchangeRate);
+    try {
+      exchangeRate = (await this.fx.rateFor(endorsement.currencyId, issuedAt)).rate;
+    } catch {
+      /* mantém o câmbio da definitiva */
+    }
+
+    const { premiumClient, premiumInsurer, premiumClientBrl } = extensionFigures({
+      premiumClient: Number(endorsement.premiumClient),
+      premiumInsurer: Number(endorsement.premiumInsurer),
+      percent,
+      exchangeRate,
+    });
+    const sequence = Math.max(0, ...endorsement.extensions.map((x) => x.sequence)) + 1;
+
+    const extension = await this.prisma.endorsementExtension.create({
+      data: {
+        endorsementId,
+        sequence,
+        issuedAt,
+        coverageUntil,
+        percent,
+        premiumClient,
+        premiumInsurer,
+        exchangeRate,
+        premiumClientBrl,
+        notes: dto.notes ?? null,
+        createdById: user.id,
+      },
+    });
+
+    await this.audit.record({
+      userId: user.id,
+      action: 'endorsement_extended',
+      entity: 'Endorsement',
+      entityId: endorsementId,
+      after: {
+        number: `${endorsement.number} PRG-${sequence}`,
+        percent,
+        premiumClient,
+        premiumInsurer,
+        coverageUntil,
+      },
+      ...ctx,
+    });
+
+    return extension;
+  }
+
+  async cancelExtension(
+    endorsementId: string,
+    extensionId: string,
+    dto: CancelExtensionDto,
+    user: AuthenticatedUser,
+    ctx: RequestContext,
+  ) {
+    const extension = await this.prisma.endorsementExtension.findFirst({
+      where: { id: extensionId, endorsementId, endorsement: { quote: this.scopeFor(user) } },
+      include: { endorsement: { select: { number: true } } },
+    });
+    if (!extension) throw new NotFoundException('Prorrogação não encontrada.');
+    if (extension.canceledAt) throw new BadRequestException('Esta prorrogação já está cancelada.');
+
+    const updated = await this.prisma.endorsementExtension.update({
+      where: { id: extensionId },
+      data: { canceledAt: new Date(), cancelReason: dto.reason.trim() },
+    });
+
+    await this.audit.record({
+      userId: user.id,
+      action: 'endorsement_extension_canceled',
+      entity: 'Endorsement',
+      entityId: endorsementId,
+      before: { number: `${extension.endorsement.number} PRG-${extension.sequence}` },
+      after: { reason: dto.reason },
+      ...ctx,
+    });
+
+    return updated;
   }
 
   // -------------------------------------------------------------------------

@@ -63,6 +63,15 @@ const ACTIONS: Record<string, { label: string; variant: 'neutral' | 'success' | 
   quote_approved: { label: 'Cotação aprovada', variant: 'success' },
   quote_rejected: { label: 'Cotação reprovada', variant: 'danger' },
   quote_canceled: { label: 'Cotação cancelada', variant: 'danger' },
+  proposal_generated: { label: 'Proposta gerada', variant: 'info' },
+  company_contact_created: { label: 'Contato adicionado', variant: 'success' },
+  company_contact_updated: { label: 'Contato editado', variant: 'info' },
+  company_contact_deleted: { label: 'Contato removido', variant: 'danger' },
+  endorsement_provisional_issued: { label: 'Provisória emitida', variant: 'success' },
+  endorsement_final_issued: { label: 'Definitiva emitida', variant: 'success' },
+  endorsement_position_changed: { label: 'Posição da averbação alterada', variant: 'info' },
+  endorsement_extended: { label: 'Definitiva prorrogada', variant: 'success' },
+  endorsement_extension_canceled: { label: 'Prorrogação cancelada', variant: 'danger' },
 };
 
 const ENTITIES: Record<string, string> = {
@@ -73,6 +82,7 @@ const ENTITIES: Record<string, string> = {
   Policy: 'Apólice',
   Coverage: 'Cobertura',
   Quote: 'Cotação',
+  Endorsement: 'Averbação',
   ExchangeRate: 'Câmbio',
   RefreshToken: 'Sessão',
   country: 'País',
@@ -82,6 +92,7 @@ const ENTITIES: Record<string, string> = {
   currency: 'Moeda',
   packaging: 'Embalagem',
   vessel: 'Navio',
+  coverageEmail: 'E-mail por cobertura',
   commodityType: 'Tipo de mercadoria',
 };
 
