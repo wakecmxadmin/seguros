@@ -122,6 +122,8 @@ export default function QuoteForm() {
       vesselAdditionalPercent: formatMoney(existing.vesselAdditionalPercent),
       irbValue: formatMoney(existing.irbValue),
       irbCurrencyId: existing.irbCurrencyId,
+      taxRateClient: existing.taxRateClient != null ? formatRate(existing.taxRateClient) : '',
+      taxRateInsurer: existing.taxRateInsurer != null ? formatRate(existing.taxRateInsurer) : '',
       salespersonId: existing.salespersonId,
       partnerPercent: formatMoney(existing.partnerPercent),
       brokerPercent: formatMoney(existing.brokerPercent),

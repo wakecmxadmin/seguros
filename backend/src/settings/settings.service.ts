@@ -26,7 +26,7 @@ export const SETTINGS = {
     label: 'Agravo — Exportação',
     description:
       'Desconto concedido pela seguradora nas operações de exportação. Aplicado automaticamente nas cotações e averbações de exportação.',
-    default: '30',
+    default: '25',
     unit: '%',
     group: 'Agravo (desconto da seguradora)',
   },
@@ -135,10 +135,12 @@ export class SettingsService {
   /**
    * Agravo do ramo — o desconto que a seguradora concede sobre o prêmio.
    *
-   * Importação 25 %, exportação 30 %. O cliente informou "0,25" e "0,30" em
-   * 03/11/2026, mas era fator, não percentual: em 35 numerários pagos do
-   * legado o valor a pagar com agravo é exatamente 75 % do prêmio da
-   * seguradora (docs/19-legado-validacoes.md). Um cliente pode ter agravo próprio negociado
+   * 25 % nos dois ramos. O cliente informou "0,25" (importação) e "0,30"
+   * (exportação) em 03/11/2026, mas era fator, não percentual — e nos dados do
+   * legado a exportação também usa 25 %: o valor a pagar com agravo é 75 % do
+   * prêmio da seguradora em 35 importações e 324 exportações pagas
+   * (docs/19-legado-validacoes.md, rodadas 1 e 2). Pendente confirmar com o
+   * cliente (tarefa 69). Um cliente pode ter agravo próprio negociado
    * (`Company.payableDiscountPercent`), que tem precedência sobre este —
    * é o caso da FRESNOMAQ, que no legado tinha um slot fixo "Importação Fresno".
    */

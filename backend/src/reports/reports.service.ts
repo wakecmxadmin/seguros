@@ -263,6 +263,7 @@ export class ReportsService {
           : irbValue;
 
     const figures = productionFigures({
+      kind: q.kind,
       currencyCode: e.currencyCode,
       exchangeRate: e.exchangeRate,
       usdRate,

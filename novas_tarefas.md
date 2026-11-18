@@ -1,8 +1,8 @@
 # Tarefas
 
-`*************-------` **67%**
+`**************------` **71%**
 
-**Total:** 64  ·  **Pendentes:** 21  ·  **Feitas (aguardando fechamento):** 9  ·  **Concluídas:** 34
+**Total:** 69  ·  **Pendentes:** 20  ·  **Feitas (aguardando fechamento):** 15  ·  **Concluídas:** 34
 
 ---
 
@@ -21,7 +21,7 @@
   (`Company.payableDiscountPercent`, opcional): quando preenchido vence o parâmetro do ramo, quando
   vazio vale o do ramo. Sai a flag manual `fresno` e sai o parâmetro
   `insurance.payable_discount_import_fresno_percent`. **Ao migrar os clientes (tarefa 51), lançar
-  0,25 % de agravo próprio nos três cadastros da FRESNOMAQ** — hoje o valor coincide com o do ramo,
+  25 % de agravo próprio nos três cadastros da FRESNOMAQ** — hoje o valor coincide com o do ramo,
   então nada sai errado no meio-tempo, mas a exceção precisa existir para quando divergirem.
   Não foi possível validar o agravo contra dado real: a *Planilha Produção* do legado (único lugar
   onde a coluna aparece) voltou vazia em todos os filtros tentados.
@@ -34,7 +34,10 @@
   (`vlFatMinimoRetencaoIrrf`, `vlFatAcumuladoRetencao`, `pcIrrfRetencao`) — existe no modelo, sem tela.
 
 - [ ] **5.** Definir escopo de **Sinistros** e **Cartas de Protesto**. Têm endpoints e telas completas
-  no legado, mas estão fora do menu. Aparentam ser relevantes para o negócio.
+  no legado, mas estão fora do menu. Aparentam ser relevantes para o negócio. — 18/11/2026: as
+  **cartas de protesto estão em uso** (aba da definitiva; catálogos com 74 avarias marítimas, 16 aéreas e
+  ~120 destinatários, salvos em `backend/prisma/data/legacy-cartas-protesto-catalogos.json`). Sinistros
+  seguem inalcançáveis pela UI do legado. → `docs/19` rodada 2
 
 - [ ] **7.** Obter o **prêmio mínimo por apólice**. O cálculo o aplica (conferido: 20,41 → 30,00), mas
   o campo não aparece na tela de Apólices. Descobrir onde está configurado hoje.
@@ -159,20 +162,31 @@
 Objetivo (16/11/2026): mapear **tudo** que existe no legado — telas, fluxos, botões, cálculos,
 números, contas e tabelas — e reproduzir no sistema novo. Mapeamento antes de implementação.
 
-- [ ] **56.** **Mapear as rotas fora do menu que nunca foram acessadas**: `AverbacaoProvisoria`,
+- [x] **56.** **Mapear as rotas fora do menu que nunca foram acessadas**: `AverbacaoProvisoria`,
   `AverbacaoDefinitiva`, `Certificado`, `Recibo`, `Seguro`, `Cobertura`, `Processo`, `PlanilhaIrb`,
   `IrbEmitida`, `IrbEmitidaSelecao`, `EmissaoRme`, `ProcessosProrrogacoes`, `NumerarioImpressao`,
   `ObservacaoSelecao`, `EmpresaSelecao`, Sinistros e Cartas de Protesto. Campos, filtros, colunas e
   ações de cada uma. Só leitura.
+  — 18/11/2026: as 79 rotas do bundle atual estão descritas (docs 15–18 e 20); as 16 de ERP foram
+  listadas por nome em `docs/01`. `IrbEmitidaSelecao` acessada: **0 IRBs emitidos**. Sinistros não
+  têm caminho na UI.
 
-- [ ] **57.** **Inventariar os botões e ações de cada linha/tela já conhecida** — listagens de
+- [x] **57.** **Inventariar os botões e ações de cada linha/tela já conhecida** — listagens de
   Novas, Em Aberto, Provisórias/Definitivas, telas de cotação, financeiro e relatórios: o que cada
   ícone/botão faz, que modal abre, que endpoint chamaria (pelo bundle, sem disparar).
+  — 18/11/2026: `docs/20-legado-inventario-acoes.md` — 81 telas, 549 ações, 150 endpoints (~81 de
+  escrita). Novidades: o "×" dos modais das cartas de protesto grava; IRB e comissão emitidos não podem
+  ser excluídos; o "Gerar" da provisória só volta; o "Gerar" da Emissão NF usa nome de leitura
+  (`obterTodasNf`) para algo que provavelmente grava.
 
-- [ ] **58.** **Mapear cálculos, totais e tabelas** de cada tela fora da cotação (já coberta em
+- [x] **58.** **Mapear cálculos, totais e tabelas** de cada tela fora da cotação (já coberta em
   `docs/04-regras-calculo.md`): numerário, intermediação, IRB/RME, NF, rankings, Relatório/Planilha
   de Produção, saldo e percentual de provisórias. Fórmulas conferidas contra valores reais
   exibidos no legado, colunas e ordenação padrão de cada tabela.
+  — 18/11/2026: `docs/19` rodada 2 — 324 numerários de exportação e 400 de importação conferidos
+  fórmula a fórmula; saldo e % da provisória; distribuição real de status × posição (11.116 linhas);
+  IRB/RME, NF e comissões medidos (praticamente sem uso). O que só fecha clicando em ação de escrita
+  ou endpoint fora da allowlist foi para a tarefa 72.
 
 - [ ] **59.** **Gerar proposta e certificado** a partir dos Modelos de Proposta já importados
   (`ProposalTemplate`, `.docx` no S3) — merge com os dados do processo, saída em PDF/DOCX.
@@ -261,6 +275,52 @@ números, contas e tabelas — e reproduzir no sistema novo. Mapeamento antes de
   nosso `CashRequest` (tarefa 38) foi modelado como *valor devido à seguradora já com agravo*.
   Decidir com o usuário: renomear o atual para "Pagamento à seguradora" e criar o numerário de
   cobrança, ou reaproveitar. Bloqueia o **recibo** (59) e a **carta de numerário**.
+
+
+- [x] **69.** **Agravo da exportação: 25 %, não 30 %.** Em 324/324 numerários de exportação pagos do
+  legado, `vlDolarAPagarAgravo20 = vlDolarAPagar × 0,75`. O cliente tinha informado "0,30" para
+  exportação (tarefa 1). Confirmar com o cliente e, se for o caso, trocar o default de
+  `insurance.payable_discount_export_percent` (hoje 30) e rodar o ajuste nas cotações salvas. → `docs/19` rodada 2
+  — 18/11/2026: default passou a 25 %; a migração `20261118120000_legacy_calc_parity` troca o parâmetro
+  (só se ainda estiver em 30) e as cotações de exportação em aberto que congelaram 30 %. A confirmação
+  com o cliente foi para a pauta da tarefa 73.
+
+- [x] **70.** **Motor de exportação diverge do legado.** No legado: (a) **I.S. = (custo + frete) ÷
+  (1 − taxa)** — prêmio sobre prêmio, 323/324; o nosso soma uma linha "Valor CIF"; (b) o **prêmio
+  cobrado no numerário depende do incoterm** (CIF/CIP/DAP/DDP = total; CFR/CPT = custo + frete; EXW/FCA/FOB
+  = só custo), enquanto a NF sai com o total; (c) na exportação o **IRB entra** na diferença, no
+  resultado e no prêmio líquido. Rever `quote-calculator.ts` com testes contra os casos salvos em
+  `backend/prisma/data/mapeamento/num-pagos-exp.json`.
+  — 18/11/2026: motor reescrito e conferido centavo a centavo contra o legado — exportação 314/315 e
+  importação 385/385 em US$ (I.S., prêmios, a pagar c/ agravo, diferença, comissão e resultado).
+  Novo `Quote.premiumCharged` (prêmio cobrado por incoterm) e "Valor CIF" calculado, não mais digitado.
+  A conferência revelou mais três erros, também corrigidos: **impostos geram prêmio** (com taxa própria,
+  campos novos `taxRateClient`/`taxRateInsurer`), **lucros incidem sobre custo + frete + despesas**, e o
+  **arredondamento** do legado é HALF_UP sobre o double exato (`backend/src/common/money.ts`). A
+  estimativa da proposta (`fobFr*`) foi corrigida pela mesma regra (385/385). Relatórios e numerário
+  usam o mesmo cálculo de agravo. **A migração ainda não foi aplicada no banco** — roda no próximo
+  deploy; cotações salvas antes só refletem as regras novas quando forem recalculadas. → `docs/04`, `docs/19`
+
+- [x] **71.** **IRB digitado por processo** também na importação (US$ 0, 10 ou 30 nos dados reais — 30 só
+  no marítimo). Hoje só a exportação tem `irbValue`; os relatórios (tarefa 61) dependem disso.
+  — 18/11/2026: campo "Valor IRB" / "Moeda IRB" nos dois ramos; o IRB entra no cálculo (convertido para a
+  moeda do processo quando vier em outra), no resultado e, na exportação, na diferença. O resumo da
+  cotação mostra IRB, prêmio cobrado e resultado do processo.
+
+- [ ] **72.** **Pontos do legado que só fecham com autorização ou com o cliente** (não dá para ler sem
+  clicar em ação de escrita ou chamar endpoint fora da allowlist): lista de palavras-chave dos modelos
+  (`/cadastro/palavrasChaves`); layout real dos arquivos de remessa e das impressões de provisórias e
+  definitivas ("Gerar"/"Imprimir"); detalhe do numerário (abrir dispara `calculaNumerario`), que explica
+  as versões 2+ e a diferença cambial; "Gerar" da Emissão NF; Planilha Produção, que volta vazia em
+  qualquer filtro. Decidir caso a caso com o usuário.
+
+- [ ] **73.** **Decidir com o cliente o que do legado não portar**, porque os dados mostram que não é
+  usado: emissão de IRB/RME (0 emitidos, 7.465 aguardando), comissão "Direta" (0 em 724 numerários),
+  posições Valorizado/Desvalorizado/Atrasado/Prorrogado/IRB Emitido/Acerto/Cobrança (0 ocorrências),
+  **Definitivas em Prorrogação (0 processos — e a tarefa 64 já implementou)**, baixa de comissão (24
+  solicitações desde 2021, nenhuma paga) e fechamento de NF (última visível de 2007).
+  Incluir na mesma conversa: **confirmar o agravo de 25 % na exportação** (tarefa 69) e se a taxa
+  sobre impostos deve continuar editável por processo.
 
 ---
 

@@ -213,12 +213,32 @@ Observações:
 
 ### Verso (texto fixo, "SEGURO DE TRANSPORTES")
 
-Parágrafo introdutório (o certificado comprova a averbação na apólice emitida pela Cia nominada;
-aceite nos termos do art. 653 e seguintes do CDC — o texto cita "CPC") e lista numerada de 7 itens:
-**Disposições da Apólice**, **Importância Segurada (IS)**, **Riscos Cobertos**, **Franquia**,
-**Forma de Contratação — Apólice de Averbação**, **Pagamento do Prêmio** (cobrança executiva pelo
-art. 27 do DL 73/66, juros *pro rata die*, autorização de emissão de Letra de Câmbio) e
-**Cláusulas** (ratificação das condições da apólice).
+Texto **literal** do template `certificado` (extraído do bundle em 18/11/2026, sem correções — inclusive o "(CPC)" que deveria ser CDC, o "De acordo" com maiúscula no meio da frase e "Clausulas" sem acento). Em lista numerada de 7 itens no original. O sistema novo deve reproduzi-lo tal qual; correções de redação só com aval da seguradora/cliente.
+
+> **SEGURO DE TRANSPORTES**
+>
+> O presente certificado de seguro representa a comprovação da efetuação da averbação de verbas seguráveis referentes ao seguro de transportes de bens pertencentes à empresa nominada neste documento junto à apólice numerada emitida em favor de terceiros pela Cia de Seguros ambas nominadas no anverso. Averbação dentro das normas específicas com base na proposta previamente enviada e cujo aceite se deu nos termos do artigo 653 e seguintes do Código de Proteção e Defesa do Consumidor (CPC)
+>
+> **1. Disposições da Apólice**
+> As disposições desta apólice aplicam-se aos bens segurados em viagens aquaviárias, terrestres e aéreas, nos percursos nacionais e internacionais, conforme definido na apólice. Consideram-se bens segurados as mercadorias identificadas na averbação. O certificado expressa a garantia da apólice nos limites da importância segurada contratada, De acordo com as condições contratuais deste seguro, o pagamento da indenização dar-se-á ao Segurado indicado no certificado e na averbação, por prejuízos ocorridos e devidamente comprovados, decorrentes dos riscos cobertos. O interesse segurável sobre o objeto segurado estará caracterizado a partir da responsabilidade das partes envolvidas, conforme a negociação efetuada entre elas e representada por documento hábil.
+>
+> **2. Importância Segurada (IS)**
+> É o valor informado pelo Segurado por ocasião da averbação provisória não implicando reconhecimento, por parte da Seguradora ou do Estipulante, da realidade deste valor, devendo este ser provado através de documentos hábeis por ocasião da averbação definitiva, podendo abranger também uma ou mais das seguintes verbas, desde que ratificadas por meio de cobertura adicional, e discriminadas por cláusulas e verbas próprias na apólice e averbação.
+>
+> **3. Riscos Cobertos**
+> Para fins deste seguro, consideram-se riscos cobertos aqueles definidos nas Condições Especiais, para cada cobertura contratada, que fazem parte integrante e inseparável desta averbação.
+>
+> **4. Franquia**
+> Pactuada entre o Segurado e a Seguradora, indicada na apólice, averbação e neste certificado.
+>
+> **5. Forma de Contratação - Apólice de Averbação**
+> Destina-se a cobrir diversos embarques, sendo estes comunicados à Seguradora através de formulário ou meio eletrônico, denominado averbação. Nos casos de apólices por averbação, o não pagamento da fatura na data indicada poderá acarretar a proibição de novas averbações, porém os bens referentes aos prêmios já pagos continuarão com cobertura até o fim da vigência prevista na apólice.
+>
+> **6. Pagamento do Prêmio**
+> Caso o prêmio venha a ser pago por risco decorrido, será o mesmo cobrado por via executiva, nos termos do Artigo 27 do Decreto-Lei n.º 73, de 21.11.66, sujeito a débito, além da atualização monetária, aos juros mensais previstos na legislação em vigor, calculados "pro rata die", até o efetivo pagamento, acrescido, ainda, do débito da multa penal, conforme legislação vigente, incidente sobre o total da dívida, sem prejuízo do ressarcimento das despesas que a Estipulante tiver de arcar para o recebimento de seu crédito. Por conta de eventual dívida, o Segurado desde já autoriza o Estipulante a emitir Letra de Câmbio, podendo, inclusive, designar-se Tomador, obrigando-se a aceitá-la e pagá-la, ainda que apresentada por terceiro dela endossatário.
+>
+> **7. Clausulas**
+> Ratificam-se os dizeres das Condições, Coberturas e Cláusulas constantes nesta apólice.
 
 ---
 
@@ -470,3 +490,18 @@ modelos `.docx`.
 | 11 | Formatação numérica dos valores no DOCX (casas, separadores) | idem item 2 |
 | 12 | Se a acentuação do recibo/certificado sai correta (HTML Latin-1 sem `charset`) | abrir e inspecionar a aba gerada |
 | 13 | Comportamento com processo prorrogado (`PRG-`, prêmio de prorrogação, selo) | certificado de processo em "Definitivas em Prorrogação" |
+
+### Respostas da rodada 2 (18/11/2026)
+
+- **4 (`isRecibo`):** `true` em todos os 724 numerários pagos analisados — coerente com "numerário pago".
+- **5 (`cdComissaoNumerario`):** 1 = Nota Fiscal em **100 %** dos numerários pagos; "Direta" (0) não é usada.
+- **6 (`vlPremioLiqOverSComiReal`):** com NF é o prêmio cheio em R$ (importação) ou (prêmio NF + IRB) × taxa
+  (exportação); a taxa de `vlPremioOverReal` é **`txDolarNumerario`**.
+- **8 (Emitir Cobertura):** `deCoberturaImpressao` = `" USD 122.874,30"` (I.S. na moeda, com espaço à esquerda),
+  `dePremio` = `" USD 307,19"`, `deTaxa` = `"0,2500000% + 0,0000000%  = 0,2500000%"` (taxa do cliente
+  básica + adicional, 7 casas, dois espaços antes do "="). Na importação o mesmo campo vem com `"null 8.343,80"`
+  (bug: moeda nula).
+- **Verso do certificado:** transcrito literalmente na seção 5.
+- **2 (fórmulas `fobFr*`):** decifradas contra 385 importações — ver doc 19, "Motor de cálculo decifrado".
+  Impostos **são** tarifados nos cenários; cenário de verba ausente sai zerado.
+- Seguem abertos: 1, 3 (precisa de autorização — `/cadastro/palavrasChaves` está fora da allowlist), 7, 9–13.

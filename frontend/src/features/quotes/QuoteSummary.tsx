@@ -54,6 +54,12 @@ export function QuoteSummary({ result, calculating, currencyCode = '' }: QuoteSu
                 <p className="tabular mt-0.5 text-[17px] font-semibold text-foreground">
                   {formatMoney(result.premiumClient)}
                 </p>
+                {result.premiumCharged !== result.premiumClient && (
+                  <p className="tabular mt-1 text-[11.5px] leading-snug text-muted-foreground">
+                    cobrado no numerário: {formatMoney(result.premiumCharged)}
+                    <span className="block">pelo incoterm; a NF sai com o total</span>
+                  </p>
+                )}
                 {result.minimumPremiumUsed && (
                   <p className="mt-1 flex items-start gap-1 text-[11.5px] leading-snug text-warning">
                     <TriangleAlert className="mt-px h-3 w-3 shrink-0" />
@@ -90,6 +96,30 @@ export function QuoteSummary({ result, calculating, currencyCode = '' }: QuoteSu
                   {result.marginPercent}% do prêmio
                 </span>
               </p>
+            </div>
+
+            <div className="px-4 py-3.5">
+              <dl className="space-y-1 text-[13px]">
+                {result.irb > 0 && (
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">IRB</dt>
+                    <dd className="tabular text-foreground">{formatMoney(result.irb)}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <dt
+                    className="text-muted-foreground"
+                    title="Prêmio do cliente − prêmio da seguradora − comissão do parceiro + IRB"
+                  >
+                    Resultado do processo
+                  </dt>
+                  <dd
+                    className={`tabular font-medium ${result.netResult < 0 ? 'text-danger' : 'text-foreground'}`}
+                  >
+                    {formatMoney(result.netResult)}
+                  </dd>
+                </div>
+              </dl>
             </div>
 
             {result.commissions.total > 0 && (

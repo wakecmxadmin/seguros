@@ -1,11 +1,14 @@
+import { percentOf, roundHalfUpExact } from '../common/money';
+
 /**
  * Contas da Planilha de Produção e dos rankings, por averbação definitiva.
  *
  * Fórmulas conferidas contra numerários pagos e rankings reais do legado
  * (docs/19-legado-validacoes.md):
  *
- *   A pagar c/ agravo US$ = prêmio seguradora US$ × (1 − agravo %)     35/35
- *   Diferença US$         = prêmio cliente US$ − a pagar c/ agravo US$  35/35
+ *   A pagar c/ agravo US$ = prêmio seguradora US$ × (1 − agravo %)     385/385 imp · 314/315 exp
+ *   Diferença US$         = prêmio cliente US$ (+ IRB na exportação)
+ *                           − a pagar c/ agravo cru (sem arredondar)    385/385 imp · 314/315 exp
  *   Resultado US$         = prêmio cliente − prêmio seguradora
  *                           − comissão do parceiro + IRB                 34/35
  *   Valor R$              = round2(valor US$ já arredondado × taxa)
@@ -16,11 +19,14 @@
  * + 990 − 5.592,90 = 946,58).
  */
 
+/** Arredondamento do legado (HALF_UP sobre o valor exato do double) — ver common/money. */
 export function round2(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return roundHalfUpExact(value, 2);
 }
 
 export interface ProductionInput {
+  /** Na exportação o IRB entra na diferença; na importação, não. */
+  kind?: 'IMPORT' | 'EXPORT' | string;
   currencyCode: string;
   /** Câmbio moeda do processo → BRL gravado na averbação. */
   exchangeRate: number;
@@ -79,13 +85,16 @@ export function productionFigures(input: ProductionInput): ProductionFigures {
   const insuredUsd = toUsd(input.insuredAmount);
   const premiumClientUsd = toUsd(input.premiumClient);
   const premiumInsurerUsd = toUsd(input.premiumInsurer);
-  const payableUsd = round2(premiumInsurerUsd * (1 - input.payableDiscountPercent / 100));
+  const payableRawUsd = percentOf(premiumInsurerUsd, 100 - input.payableDiscountPercent);
+  const payableUsd = round2(payableRawUsd);
   const partnerCommissionUsd = toUsd(input.partnerCommission);
   const irbUsd = round2(input.irbUsd);
 
   const premiumClientBrl = round2(premiumClientUsd * brlRate);
   const payableBrl = round2(payableUsd * brlRate);
-  const diffBrl = round2(premiumClientBrl - payableBrl);
+  const irbBrl = round2(irbUsd * brlRate);
+  const isExport = input.kind === 'EXPORT';
+  const diffBrl = round2(premiumClientBrl + (isExport ? irbBrl : 0) - payableBrl);
 
   return {
     brlRate,
@@ -95,12 +104,12 @@ export function productionFigures(input: ProductionInput): ProductionFigures {
     payableUsd,
     premiumClientBrl,
     payableBrl,
-    diffUsd: round2(premiumClientUsd - payableUsd),
+    diffUsd: round2(premiumClientUsd + (isExport ? irbUsd : 0) - payableRawUsd),
     diffBrl,
     profitability: premiumClientBrl ? round2((diffBrl / premiumClientBrl) * 100) : null,
     partnerCommissionUsd,
     irbUsd,
-    irbBrl: round2(irbUsd * brlRate),
+    irbBrl,
     resultUsd: round2(premiumClientUsd - premiumInsurerUsd - partnerCommissionUsd + irbUsd),
     missingRate: !canConvert,
   };

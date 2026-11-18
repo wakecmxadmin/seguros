@@ -23,7 +23,8 @@ Nenhum dado foi criado, alterado ou removido durante o mapeamento.
 | [16-legado-documentos.md](16-legado-documentos.md) | Proposta (placeholders dos .docx), recibo, certificado, emitir cobertura |
 | [17-legado-financeiro.md](17-legado-financeiro.md) | Numerário, carta de numerário, IRB/RME, intermediação, fechamento ("Emissão NF") |
 | [18-legado-relatorios-e-sistema.md](18-legado-relatorios-e-sistema.md) | Rankings, Planilha Produção, impressão/arquivo de provisórias e definitivas, cadastros e telas de sistema restantes |
-| [19-legado-validacoes.md](19-legado-validacoes.md) | Fórmulas e comportamentos conferidos contra dados reais (rankings, numerário, agravo, câmbio, defaults) |
+| [19-legado-validacoes.md](19-legado-validacoes.md) | Fórmulas e comportamentos conferidos contra dados reais — rodada 1 (rankings, numerário de importação, defaults) e rodada 2 (exportação, posições reais, saldo, IRB/NF/comissões, cartas de protesto) |
+| [20-legado-inventario-acoes.md](20-legado-inventario-acoes.md) | Todos os botões/ações de 81 telas: condição de exibição, método, endpoint (leitura × escrita) |
 | [SIGRA_DB.md](SIGRA_DB.md) | Schema, tabelas e conexão do banco externo `sigraweb` (SIGRA) |
 
 ## Stack alvo (mesmo padrão dos demais projetos em `dev/wake`)

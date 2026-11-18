@@ -76,7 +76,7 @@ export function StepRates({ values, set, result }: StepProps) {
             <Field
               label="Lucros esperados (%)"
               htmlFor="profitPercent"
-              hint="Sobre custo + frete."
+              hint="Sobre custo + frete + despesas."
             >
               <Input
                 id="profitPercent"
@@ -86,7 +86,7 @@ export function StepRates({ values, set, result }: StepProps) {
                 onChange={(e) => set('profitPercent', e.target.value)}
               />
             </Field>
-            <Field label="Impostos" htmlFor="taxes" hint="Entram na I.S., mas não são tarifados.">
+            <Field label="Impostos" htmlFor="taxes" hint="Entram na I.S. e geram prêmio.">
               <Input
                 id="taxes"
                 className="tabular text-right"
@@ -95,16 +95,50 @@ export function StepRates({ values, set, result }: StepProps) {
                 onChange={(e) => set('taxes', e.target.value)}
               />
             </Field>
+            <Field
+              label="Taxa s/ impostos — cliente (%)"
+              htmlFor="taxRateClient"
+              hint="Vazio = mesma taxa das demais linhas."
+            >
+              <Input
+                id="taxRateClient"
+                className="tabular text-right"
+                inputMode="decimal"
+                placeholder="mesma das linhas"
+                value={values.taxRateClient}
+                onChange={(e) => set('taxRateClient', e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Taxa s/ impostos — seguradora (%)"
+              htmlFor="taxRateInsurer"
+              hint="Vazio = mesma taxa das demais linhas."
+            >
+              <Input
+                id="taxRateInsurer"
+                className="tabular text-right"
+                inputMode="decimal"
+                placeholder="mesma das linhas"
+                value={values.taxRateInsurer}
+                onChange={(e) => set('taxRateInsurer', e.target.value)}
+              />
+            </Field>
           </>
         ) : (
           <>
-            <Field label="Valor CIF" htmlFor="cifValue">
+            <Field
+              label="Valor CIF"
+              htmlFor="cifValue"
+              hint="Calculado: prêmio sobre prêmio, (custo + frete) ÷ (1 − taxa) − (custo + frete)."
+            >
               <Input
                 id="cifValue"
                 className="tabular text-right"
-                inputMode="decimal"
-                value={values.cifValue}
-                onChange={(e) => set('cifValue', e.target.value)}
+                readOnly
+                tabIndex={-1}
+                value={formatMoney(
+                  result?.lines.find((l) => l.item === RateLineItem.CIF_VALUE)?.amount ?? 0,
+                )}
               />
             </Field>
             <Field

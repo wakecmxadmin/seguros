@@ -115,15 +115,42 @@ const quote: ProposalQuote = {
 };
 
 describe('importScenarios', () => {
-  it('monta os seis cenários a partir de custo + frete (processo 2085)', () => {
+  it('cenário que depende de verba ausente sai zerado (lucros desmarcados)', () => {
     const s = Object.fromEntries(importScenarios(quote).map((x) => [x.key, x]));
-    // base 7.422,01; despesas e lucros 10 % = 742,20 cada; taxa 0,15 %
+    // base 7.422,01; despesas 742,20; taxa 0,15 %; impostos 2.000 com taxa 0
     expect(s.fobFr).toEqual({ key: 'fobFr', insured: 7422.01, premium: 11.13 });
     expect(s.fobFrDes.insured).toBe(8164.21);
-    expect(s.fobFrDesLuc.insured).toBe(8906.41);
-    // impostos entram na I.S. mas não no prêmio, como no motor de cálculo
-    expect(s.fobFrImp).toEqual({ key: 'fobFrImp', insured: 9422.01, premium: 11.13 });
-    expect(s.fobFrDesLucImp.insured).toBe(10906.41);
+    expect(s.fobFrDesLuc).toEqual({ key: 'fobFrDesLuc', insured: 0, premium: 0 });
+    expect(s.fobFrImp.insured).toBe(9422.01);
+    expect(s.fobFrDesLucImp).toEqual({ key: 'fobFrDesLucImp', insured: 0, premium: 0 });
+  });
+
+  it('confere com o legado — processo 2041, D-107166 (todas as verbas)', () => {
+    const line = (item: ProposalQuote['lines'][number]['item'], amount: number) => ({
+      item, amount, baseRateClient: 0.13, extraRateClient: 0, warRateClient: 0, premiumClient: 0,
+    });
+    const s = Object.fromEntries(
+      importScenarios({
+        ...quote,
+        warStrike: true,
+        minimumPremiumApplied: false,
+        premiumClient: 166.04,
+        lines: [
+          line('COST', 61189.5),
+          line('FREIGHT', 19000),
+          line('EXPENSES', 8018.95),
+          line('EXPECTED_PROFIT', 8820.84),
+          line('TAXES', 30691.29),
+        ],
+      }).map((x) => [x.key, x]),
+    );
+    // Valores fobFr*Is/Pr do legado, arredondados.
+    expect(s.fobFr).toEqual({ key: 'fobFr', insured: 80189.5, premium: 104.25 });
+    expect(s.fobFrDes).toEqual({ key: 'fobFrDes', insured: 88208.45, premium: 114.67 });
+    expect(s.fobFrDesLuc).toEqual({ key: 'fobFrDesLuc', insured: 97029.29, premium: 126.14 });
+    expect(s.fobFrImp).toEqual({ key: 'fobFrImp', insured: 110880.79, premium: 144.15 });
+    expect(s.fobFrDesImp).toEqual({ key: 'fobFrDesImp', insured: 118899.74, premium: 154.57 });
+    expect(s.fobFrDesLucImp).toEqual({ key: 'fobFrDesLucImp', insured: 127720.58, premium: 166.04 });
   });
 
   it('com guerra e greve, a taxa inclui o adicional', () => {
@@ -133,7 +160,7 @@ describe('importScenarios', () => {
 
   it('aplica o piso só quando a cotação usou prêmio mínimo', () => {
     const s = importScenarios({ ...quote, minimumPremiumApplied: true, premiumClient: 30 });
-    expect(s.every((x) => x.premium >= 30)).toBe(true);
+    expect(s.filter((x) => x.insured > 0).every((x) => x.premium >= 30)).toBe(true);
   });
 });
 

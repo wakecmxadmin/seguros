@@ -540,3 +540,13 @@ Nada disso foi executado.
 15. **E-mails:** editar o e-mail de um card cria um registro novo? (consultar, não testar em produção).
 16. **Console SQL:** confirmar com a Infoline se `/cadastro/executaScriptSql` está ativo em produção e
     se o servidor restringe o usuário — é um risco de segurança independente do front.
+
+### Respostas da rodada 2 (18/11/2026)
+
+- **6 (agravo):** desconto de 25 % nos dois tipos (ver doc 19, rodada 2). `vlDolarAPagar` é a soma não
+  arredondada das verbas da seguradora; `vlFinalPremioSeguradoraDolar` a soma já arredondada.
+- **Novo — paginação:** alterar "registros por página" chama `salvarQtRegistrosPaginaUsuario` (grava no
+  perfil). Em produção respondeu 405.
+- **Novo — NF's Emitidas:** sem paginação; só os 15 primeiros fechamentos aparecem.
+- Seguem abertos: 1–5, 7–16 (rankings conferidos na rodada 1; arquivos e impressões exigem clicar em
+  "Gerar"/"Imprimir", fora do escopo só leitura sem aval).

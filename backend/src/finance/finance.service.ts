@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { FxService } from '../fx/fx.service';
 import { SettingsService } from '../settings/settings.service';
+import { money, percentOf } from '../common/money';
 import type { RequestContext } from '../auth/auth.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import {
@@ -221,8 +222,11 @@ export class FinanceService {
         endorsement.quote.kind,
         endorsement.quote.client?.payableDiscountPercent ?? null,
       ));
-    const discountAmount = round((premiumInsurer * discountPercent) / 100);
-    const amount = round(Math.max(premiumInsurer - discountAmount, 0));
+    // Mesma regra do motor de cálculo: a pagar = round(prêmio × (1 − agravo)),
+    // como o `vlDolarAPagarAgravo20` do legado (docs/19, rodada 2).
+    const boundedPercent = Math.min(Math.max(discountPercent, 0), 100);
+    const amount = money(percentOf(premiumInsurer, 100 - boundedPercent));
+    const discountAmount = money(premiumInsurer - amount);
 
     let exchangeRate = Number(endorsement.exchangeRate);
     try {

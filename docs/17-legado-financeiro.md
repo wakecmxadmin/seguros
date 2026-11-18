@@ -777,3 +777,20 @@ Sem status: gerado (`obterTodasNf` sem `cdNf`) → listado em NfEmitida → reab
     só existem no cadastro de Empresa do ERP) ou se o servidor aplica ao gerar a solicitação de NF.
 21. **Pinho % e Vendedor %**: onde esses valores são pagos/usados hoje (nenhuma tela financeira os mostra).
 22. Dados bancários e CNPJ fixos na carta (Bradesco ag. 1205-0, c/c 30234-1) continuam válidos?
+
+### Respostas da rodada 2 (18/11/2026 — detalhes em `19-legado-validacoes.md`)
+
+- **1 (fórmulas do numerário):** conferidas em 324 exportações e 400 importações, todas Nota Fiscal.
+  Imp·Direta e Exp·Direta **não existem** na base.
+- **2 (câmbio):** todas as colunas R$ do numerário usam `txDolarNumerario`.
+- **3 (comissão R$):** round2(comissão US$ × `txDolarNumerario`).
+- **4 (agravo):** `vlDolarAPagarAgravo20 = vlDolarAPagar × 0,75` — desconto de **25 % na importação e
+  também na exportação** (324/324). O "0,30" informado para exportação não aparece nos dados.
+- **13 (Cheque IRB):** entram **todos** os numerários pagos, importação e exportação (7.465).
+- **16 (IRB):** `vlIrb` é digitado por processo (US$ 0, 10 ou 30), não calculado.
+- **17 (RME):** **nenhum IRB/RME emitido** em toda a base — fluxo morto.
+- **19 (Gerar NF):** não testado (escrita provável). As NF's Emitidas vão de 2006 em diante; a tela só
+  mostra as 15 primeiras.
+- **Comissões emitidas:** 24 solicitações de NF desde 2021, nenhuma com pagamento registrado; 5.602
+  comissões aguardando solicitação. O baixa de comissão pelo legado praticamente não é usada.
+- Seguem abertos: 5–12, 14, 15, 18, 20–22.

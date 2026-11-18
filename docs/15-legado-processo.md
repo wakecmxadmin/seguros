@@ -676,3 +676,23 @@ aguardando resposta. O saldo da provisória (`vlSaldo`, `pcSaldo`) vem calculado
     cobradas do cliente?
 19. **Transbordo** (`flAereo`) e **Adicional navio** (cliente/seguradora): impacto no prêmio.
 20. `cdEmbalagem = 30` na exportação corresponde a "ADEQUADA"?
+
+### Respostas da rodada 2 (18/11/2026 — detalhes em `19-legado-validacoes.md`)
+
+- **1 (Aprovar):** a cotação continua como linha do processo (`nuAverbacao 0`, posição *Aprovada*) e a
+  provisória nasce no mesmo `cdTransacao`. Exportação: não conferido.
+- **2 (Adicionar Definitiva):** saldo = custo da provisória − Σ custo das definitivas, por processo;
+  **pode ficar negativo** e não há bloqueio. A posição não muda sozinha ao zerar (segue *Parcial*).
+- **3 (Concluir × Cancelar):** há *Concluídas* com saldo de 100 % e com saldo negativo — concluir não
+  zera nem exige saldo zero.
+- **4 (Efetuar Cobrança):** posição *Cobrança* tem **0** provisórias — o botão não é usado.
+- **10 (Provisória única):** um processo pode ter várias provisórias (2168 tem duas).
+- **13 (Coluna I.S. da listagem):** vem **zerada** (assim como Prêmio US$) nas linhas recentes; só o
+  detalhe traz valores.
+- **14 (posições de definitiva):** Valorizado, Desvalorizado, Atrasado, Prorrogado, IRB Emitido e Acerto
+  têm **0** ocorrências. Ver tabela completa de status × posição no doc 19.
+- **15 (Pendências):** traz **todos os status** (11.116 linhas: cotação, provisória e definitiva).
+- **16 (Cartas/Sinistros):** cartas de protesto **em uso** (catálogos com 74/16 avarias e ~120
+  destinatários). Sinistros seguem inalcançáveis pela UI.
+- **Novo:** o botão **"Gerar"** da provisória só chama `voltar()`.
+- Seguem abertos: 5, 6, 7 (parcialmente respondido no doc 19, rodada 1), 8, 9, 11, 12, 17–20.

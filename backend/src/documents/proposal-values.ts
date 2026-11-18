@@ -5,6 +5,8 @@
  * edição. Função pura: recebe a cotação já carregada e devolve strings.
  */
 
+import { money, percentOf } from '../common/money';
+
 export interface ProposalQuote {
   number: number;
   kind: 'IMPORT' | 'EXPORT';
@@ -49,10 +51,6 @@ const MODAL: Record<ProposalQuote['modal'], string> = {
   RAIL: 'Ferroviário',
 };
 
-function round2(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
-}
-
 /** 1234.5 → "1.234,50" */
 export function brNumber(value: number, digits = 2) {
   return value.toLocaleString('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -74,41 +72,47 @@ export interface Scenario {
 }
 
 /**
- * Os seis cenários da "Estimativa de seguro" da importação: o cliente escolhe
- * quais verbas compõem a I.S. Usa a mesma taxa e a mesma regra do motor de
- * cálculo — impostos entram na I.S. mas não são tarifados, e o piso só vale
- * quando a cotação aplicou prêmio mínimo.
+ * Os seis cenários da "Estimativa de seguro" da importação.
+ *
+ * Regra conferida contra 385 importações pagas do legado, que guardam os seis
+ * pares `fobFr*Is`/`fobFr*Pr` (docs/19, rodada 2):
+ *   - despesas, lucros e impostos são os da própria cotação; o cenário que
+ *     depende de uma verba ausente sai zerado;
+ *   - a linha de impostos é tarifada, com a taxa dela;
+ *   - prêmio = max(round(base × taxa + impostos × taxa de impostos), piso).
  */
 export function importScenarios(q: ProposalQuote): Scenario[] {
   const line = (item: ProposalQuote['lines'][number]['item']) => q.lines.find((l) => l.item === item);
+  const total = (l?: ProposalQuote['lines'][number]) =>
+    l ? l.baseRateClient + l.extraRateClient + (q.warStrike ? l.warRateClient : 0) : 0;
+
   const cost = line('COST')?.amount ?? 0;
   const freight = line('FREIGHT')?.amount ?? 0;
+  const expenses = line('EXPENSES')?.amount ?? 0;
+  const profit = line('EXPECTED_PROFIT')?.amount ?? 0;
   const taxes = line('TAXES')?.amount ?? 0;
-  const base = round2(cost + freight);
 
-  // Despesas e lucros são oferecidos mesmo quando não foram marcados na
-  // cotação: é justamente a escolha que a proposta apresenta ao cliente.
-  const expenses = round2((base * q.expensePercent) / 100);
-  const profit = round2((base * q.profitPercent) / 100);
-
-  const ref = line('COST') ?? line('FREIGHT');
-  const rate = ref
-    ? ref.baseRateClient + ref.extraRateClient + (q.warStrike ? ref.warRateClient : 0)
-    : 0;
+  const rate = total(line('COST') ?? line('FREIGHT'));
+  const taxRate = line('TAXES') ? total(line('TAXES')) : rate;
 
   // Piso: a cotação guarda o prêmio já com o mínimo; se ele ficou acima da
-  // soma das linhas, a diferença é o mínimo aplicado.
-  const linesPremium = round2(q.lines.reduce((acc, l) => acc + l.premiumClient, 0));
+  // soma das linhas, a diferença é o mínimo aplicado. (Sem o valor do piso
+  // gravado na cotação — tarefa 36 — não dá para aplicá-lo quando a cotação
+  // inteira ficou acima dele.)
+  const linesPremium = money(q.lines.reduce((acc, l) => acc + l.premiumClient, 0));
   const floor = q.minimumPremiumApplied && q.premiumClient > linesPremium ? q.premiumClient : 0;
 
-  const premiumOf = (tariffed: number) => Math.max(round2((tariffed * rate) / 100), floor);
-
   const scenario = (key: string, parts: { expenses?: boolean; profit?: boolean; taxes?: boolean }) => {
-    const tariffed = round2(base + (parts.expenses ? expenses : 0) + (parts.profit ? profit : 0));
+    const available =
+      (!parts.expenses || expenses > 0) && (!parts.profit || profit > 0) && (!parts.taxes || taxes > 0);
+    if (!available) return { key, insured: 0, premium: 0 };
+
+    const tariffed = cost + freight + (parts.expenses ? expenses : 0) + (parts.profit ? profit : 0);
+    const taxed = parts.taxes ? taxes : 0;
     return {
       key,
-      insured: round2(tariffed + (parts.taxes ? taxes : 0)),
-      premium: premiumOf(tariffed),
+      insured: money(tariffed + taxed),
+      premium: Math.max(money(percentOf(tariffed, rate) + percentOf(taxed, taxRate)), floor),
     };
   };
 

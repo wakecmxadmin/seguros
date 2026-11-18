@@ -20,6 +20,25 @@ describe('productionFigures', () => {
     expect(f.diffUsd).toBe(70);
   });
 
+  it('na exportação o IRB entra na diferença — caso real E-50316', () => {
+    const f = productionFigures({
+      kind: 'EXPORT',
+      currencyCode: 'USD',
+      exchangeRate: 5.8368,
+      usdRate: 5.8368,
+      insuredAmount: 122874.3,
+      premiumClient: 307.19,
+      premiumInsurer: 307.19,
+      payableDiscountPercent: 25,
+      partnerCommission: 92.16,
+      irbUsd: 10,
+    });
+    // 307,19 + 10 − 230,3925 = 86,7975 → 86,80 (vlDiferencaDolar do legado).
+    expect(f.payableUsd).toBe(230.39);
+    expect(f.diffUsd).toBe(86.8);
+    expect(f.resultUsd).toBe(-82.16);
+  });
+
   it('resultado usa o prêmio da seguradora cheio — caso real FRESNOMAQ 2720', () => {
     const f = productionFigures({
       ...base,

@@ -230,10 +230,12 @@ export class QuotesService {
 
     return {
       kind: dto.kind,
+      incoterm: dto.incoterm ?? null,
+      irb: await this.irbInProcessCurrency(dto, exchangeRate),
+      taxRates: { client: dto.taxRateClient ?? null, insurer: dto.taxRateInsurer ?? null },
       cost: dto.cost ?? 0,
       freight: dto.freight ?? 0,
       taxes: dto.taxes ?? 0,
-      cifValue: dto.cifValue ?? 0,
       expensePercent: dto.expensePercent ?? 0,
       profitPercent: dto.profitPercent ?? 0,
       expensesCovered: dto.expensesCovered,
@@ -263,6 +265,27 @@ export class QuotesService {
       payableDiscountPercent:
         dto.payableDiscountPercent ?? (await this.resolvePayableDiscount(dto.kind, dto.clientId)),
     };
+  }
+
+  /**
+   * IRB na moeda do processo. No legado ele é digitado em US$ na maioria dos
+   * casos, com moeda própria; quando difere da moeda do processo, converte
+   * pelas cotações do dia. Sem cotação, usa o valor como veio — melhor um IRB
+   * na moeda errada visível na tela do que um IRB sumido do resultado.
+   */
+  private async irbInProcessCurrency(
+    dto: CalculateQuoteDto,
+    processRate: number,
+  ): Promise<number> {
+    const value = dto.irbValue ?? 0;
+    if (!value || !dto.irbCurrencyId || dto.irbCurrencyId === dto.currencyId) return value;
+    try {
+      const date = dto.issueDate ? new Date(dto.issueDate) : new Date();
+      const irbRate = (await this.fx.rateFor(dto.irbCurrencyId, date)).rate;
+      return processRate > 0 ? (value * irbRate) / processRate : value;
+    } catch {
+      return value;
+    }
   }
 
   /**
@@ -301,6 +324,7 @@ export class QuotesService {
         insuredAmount: result.insuredAmount,
         premiumClient: result.premiumClient,
         premiumInsurer: result.premiumInsurer,
+        premiumCharged: result.premiumCharged,
         payableDiscountPercent: input.payableDiscountPercent ?? 0,
         payableDiscount: result.payableDiscount,
         insurerPayable: result.insurerPayable,
@@ -351,6 +375,7 @@ export class QuotesService {
         insuredAmount: result.insuredAmount,
         premiumClient: result.premiumClient,
         premiumInsurer: result.premiumInsurer,
+        premiumCharged: result.premiumCharged,
         payableDiscountPercent: input.payableDiscountPercent ?? 0,
         payableDiscount: result.payableDiscount,
         insurerPayable: result.insurerPayable,
@@ -537,6 +562,8 @@ export class QuotesService {
       vesselAdditionalPercent: dto.vesselAdditionalPercent ?? 0,
       irbValue: dto.irbValue ?? 0,
       irbCurrencyId: dto.irbCurrencyId ?? null,
+      taxRateClient: dto.taxRateClient ?? null,
+      taxRateInsurer: dto.taxRateInsurer ?? null,
 
       salespersonId: dto.salespersonId ?? null,
       partnerPercent: dto.partnerPercent ?? 0,

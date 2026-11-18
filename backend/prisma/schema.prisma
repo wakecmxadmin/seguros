@@ -862,11 +862,18 @@ model Quote {
   taxIcms       Boolean @default(false)
   taxPis        Boolean @default(false)
   taxCofins     Boolean @default(false)
+  /// Taxas totais da linha de impostos, em %. Nulas = a taxa das demais linhas.
+  taxRateClient  Decimal? @db.Decimal(12, 5)
+  taxRateInsurer Decimal? @db.Decimal(12, 5)
 
   // --- Resultado do cálculo ----------------------------------------------
   insuredAmount     Decimal   @default(0) @db.Decimal(18, 2)
   premiumClient     Decimal   @default(0) @db.Decimal(18, 2)
   premiumInsurer    Decimal   @default(0) @db.Decimal(18, 2)
+  /// Prêmio cobrado do cliente no numerário. Na exportação depende do incoterm
+  /// (CFR/CPT: custo + frete; EXW/FCA/FAS/FOB: só custo); na importação é o
+  /// próprio prêmio do cliente. A NF e as comissões usam `premiumClient`.
+  premiumCharged    Decimal   @default(0) @db.Decimal(18, 2)
   /// Agravo em valor e o que sobra a pagar à seguradora (prêmio − agravo).
   payableDiscount   Decimal   @default(0) @db.Decimal(18, 2)
   insurerPayable    Decimal   @default(0) @db.Decimal(18, 2)

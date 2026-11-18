@@ -99,12 +99,21 @@ Destaques do domínio de seguros:
 |---|---|---|
 | `PerfilSelecao/:origem` | Cadastro de perfis e permissões | **funciona** — acessada e mapeada |
 | `ProcessosProrrogacoes/:origem` | Definitivas em Prorrogação | funciona, 0 registros |
-| `AverbacaoProvisoria` / `AverbacaoDefinitiva` | telas de averbação | não acessadas |
+| `AverbacaoProvisoria` / `AverbacaoDefinitiva` | telas de averbação | mesmo componente `processo` (doc 15 §2.1) |
 | `Certificado` · `Recibo` · `Seguro` · `Cobertura` · `Processo` | documentos e detalhes | não acessadas |
-| `PlanilhaIrb` · `IrbEmitida` · `IrbEmitidaSelecao` · `EmissaoRme` | resseguro / RME | não acessadas |
+| `PlanilhaIrb` · `IrbEmitida` · `IrbEmitidaSelecao` · `EmissaoRme` | resseguro / RME | `IrbEmitidaSelecao` acessada: **0 IRBs emitidos** (doc 19) |
 | `NumerarioImpressao` · `ObservacaoSelecao` · `EmpresaSelecao` | apoio | não acessadas |
 | `alterarSenha` · `AlteracaoImagemUsuario` | perfil do próprio usuário | não acessadas |
 | `ComandosSqlSelecaoComponent` | **console de SQL arbitrário** | ⚠️ não acessada (executaria escrita) |
+
+## Rotas do ERP genérico da Infoline (fora de escopo)
+
+Presentes no bundle, sem relação com seguros, não portar: `GloAgentesOrigensContatosSelecao`,
+`GloCondicoesPagamentosSelecao`, `GloRamosAtividadesSelecao`, `GloSeriesSelecao`,
+`GloSituacoesTributariasSelecao`, `GloVendedoresInternosSelecao`, `gloCnaeSelecao`, `CFOSelecao`,
+`ClassificacaoFiscalSelecao`, `ComAgentesGruposSelecao`, `fabricanteSelecao`, `appCategorias`,
+`appItens`, `EmpresaSelecao`, `background`, `downloadElectron`. Conferido em 18/11/2026: o bundle atual
+(`main-S4VFPNOX.js`) tem 79 rotas; todas as de seguros estão descritas nos docs 15–18 e 20.
 
 ## Telas apontando para `#/emContrucao` (nunca implementadas)
 - Financeiro › *Pagamento de Intermediação de Negócios Funcionário*

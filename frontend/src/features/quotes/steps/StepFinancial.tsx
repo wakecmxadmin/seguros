@@ -211,33 +211,30 @@ export function StepFinancial({ values, set, errors }: StepProps) {
           />
         </Field>
 
-        {!isImport && (
-          <>
-            <Field label="Valor IRB" htmlFor="irbValue">
-              <Input
-                id="irbValue"
-                className="tabular text-right"
-                inputMode="decimal"
-                value={values.irbValue}
-                onChange={(e) => set('irbValue', e.target.value)}
-              />
-            </Field>
-            <Field label="Moeda IRB" htmlFor="irbCurrencyId">
-              <Select
-                id="irbCurrencyId"
-                value={values.irbCurrencyId ?? ''}
-                onChange={(e) => set('irbCurrencyId', e.target.value || null)}
-              >
-                <option value="">Selecione…</option>
-                {currencies?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </>
-        )}
+        {/* IRB digitado por processo nos dois ramos (US$ 0, 10 ou 30 no legado). */}
+        <Field label="Valor IRB" htmlFor="irbValue" hint="Receita do processo.">
+          <Input
+            id="irbValue"
+            className="tabular text-right"
+            inputMode="decimal"
+            value={values.irbValue}
+            onChange={(e) => set('irbValue', e.target.value)}
+          />
+        </Field>
+        <Field label="Moeda IRB" htmlFor="irbCurrencyId">
+          <Select
+            id="irbCurrencyId"
+            value={values.irbCurrencyId ?? ''}
+            onChange={(e) => set('irbCurrencyId', e.target.value || null)}
+          >
+            <option value="">Selecione…</option>
+            {currencies?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
       </div>
     </div>
   );

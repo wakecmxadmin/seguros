@@ -99,6 +99,20 @@ export class CalculateQuoteDto {
   @IsOptional() @IsNumber() @Min(0) partnerPercent?: number;
   @IsOptional() @IsNumber() @Min(0) brokerPercent?: number;
   @IsOptional() @IsNumber() @Min(0) salespersonPercent?: number;
+
+  /** Na exportação decide quanto do prêmio é cobrado no numerário. */
+  @IsOptional() @IsEnum(Incoterm) incoterm?: Incoterm;
+
+  /** IRB digitado por processo (importação e exportação), na moeda `irbCurrencyId`. */
+  @IsOptional() @IsNumber() @Min(0) irbValue?: number;
+  @IsOptional() @IsUUID() irbCurrencyId?: string;
+
+  /**
+   * Taxas totais da linha de impostos (importação), em %. Vazias = mesma taxa
+   * das demais linhas, como no legado.
+   */
+  @IsOptional() @IsNumber() @Min(0) taxRateClient?: number;
+  @IsOptional() @IsNumber() @Min(0) taxRateInsurer?: number;
 }
 
 /** Cálculo + dados cadastrais do processo. */
@@ -153,7 +167,6 @@ export class SaveQuoteDto extends CalculateQuoteDto {
   @IsOptional() @IsUUID() packagingId?: string;
 
   // --- Financeiro ---------------------------------------------------------
-  @IsOptional() @IsEnum(Incoterm) incoterm?: Incoterm;
   @IsOptional() @IsNumber() @Min(0) overPercent?: number;
   @IsOptional() @EmptyToUndefined() @IsString() reference?: string;
   @IsOptional() @IsEnum(BillingVia) billingVia?: BillingVia;
@@ -163,8 +176,6 @@ export class SaveQuoteDto extends CalculateQuoteDto {
   @IsOptional() @IsNumber() @Min(0) insurerDiscount?: number;
   @IsOptional() @IsNumber() @Min(0) standardDiscount?: number;
   @IsOptional() @IsNumber() @Min(0) letterAdditionalPercent?: number;
-  @IsOptional() @IsNumber() @Min(0) irbValue?: number;
-  @IsOptional() @IsUUID() irbCurrencyId?: string;
 
   @IsOptional() @IsUUID() salespersonId?: string;
 

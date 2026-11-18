@@ -59,6 +59,9 @@ export interface QuoteFormValues {
   letterAdditionalPercent: string;
   vesselAdditionalPercent: string;
   irbValue: string;
+  /** Taxas da linha de impostos (%). Vazio = mesma taxa das demais linhas. */
+  taxRateClient: string;
+  taxRateInsurer: string;
   irbCurrencyId: string | null;
 
   salespersonId: string | null;
@@ -110,8 +113,13 @@ export interface CalculationResult {
   premiumClient: number;
   premiumInsurer: number;
   minimumPremiumUsed: boolean;
+  /** Prêmio cobrado no numerário — na exportação depende do incoterm. */
+  premiumCharged: number;
+  irb: number;
   grossMargin: number;
   marginPercent: number;
+  /** Resultado do legado: prêmio − seguradora − comissão do parceiro + IRB. */
+  netResult: number;
   insurerPayable: number;
   payableDiscount: number;
   commissions: { partner: number; broker: number; salesperson: number; total: number };
@@ -119,6 +127,7 @@ export interface CalculationResult {
   insuredAmountBrl: number;
   premiumClientBrl: number;
   premiumInsurerBrl: number;
+  premiumChargedBrl: number;
 }
 
 export function emptyQuote(kind: 'IMPORT' | 'EXPORT'): QuoteFormValues {
@@ -171,6 +180,8 @@ export function emptyQuote(kind: 'IMPORT' | 'EXPORT'): QuoteFormValues {
     letterAdditionalPercent: '10,00',
     vesselAdditionalPercent: '0,00',
     irbValue: '0,00',
+    taxRateClient: '',
+    taxRateInsurer: '',
     irbCurrencyId: null,
     salespersonId: null,
     partnerPercent: '30,00',
@@ -262,6 +273,8 @@ export function toPayload(values: QuoteFormValues) {
     letterAdditionalPercent: n(values.letterAdditionalPercent),
     vesselAdditionalPercent: n(values.vesselAdditionalPercent),
     irbValue: n(values.irbValue),
+    taxRateClient: values.taxRateClient.trim() ? n(values.taxRateClient) : undefined,
+    taxRateInsurer: values.taxRateInsurer.trim() ? n(values.taxRateInsurer) : undefined,
     irbCurrencyId: values.irbCurrencyId ?? undefined,
 
     salespersonId: values.salespersonId ?? undefined,
@@ -313,7 +326,8 @@ export function useQuoteCalculation(values: QuoteFormValues) {
       JSON.stringify([
         values.kind, values.modal, values.currencyId, values.policyId, values.coverageId,
         values.commodityTypeId, values.issueDate,
-        values.cost, values.freight, values.taxes, values.cifValue,
+        values.cost, values.freight, values.taxes, values.incoterm,
+        values.irbValue, values.irbCurrencyId, values.taxRateClient, values.taxRateInsurer,
         values.expensePercent, values.profitPercent,
         values.clientBaseRate, values.clientExtraRate, values.clientWarRate,
         values.insurerBaseRate, values.insurerExtraRate, values.insurerWarRate,
