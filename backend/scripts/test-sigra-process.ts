@@ -6,6 +6,8 @@
  * banco do SIGRA) — ele conecta de verdade no banco de produção do SIGRA.
  *
  * Uso:
+ *   npm run sigra:test -- 1935396   # importação (Multi Mercantes)
+ *   npm run sigra:test -- 1921824   # exportação via agenciamento (Kalay)
  *   npm run sigra:test -- 1901475
  *   npm run sigra:test              # usa o processo de exemplo 1901475 (docs/13)
  */
@@ -13,6 +15,7 @@ import 'dotenv/config';
 import type { ConfigService } from '@nestjs/config';
 import { SigraConnectionService } from '../src/sigra/sigra-connection.service';
 import { SigraProcessService } from '../src/sigra/sigra-process.service';
+import { mapSigraAgencyToQuoteDraft, mapSigraToQuoteDraft } from '../src/quotes/sigra-draft-mapper';
 
 const EXAMPLE_SIGRA_ID = 1901475; // PO 260098, Multi Mercantes — ver docs/13-sigra-campos-necessarios.md
 
@@ -56,29 +59,41 @@ async function main() {
   const service = new SigraProcessService(connection);
 
   try {
-    step(`getSummary(${sigraId}) — pinho.imp_processo + pinho.processo`);
-    const summary = await service.getSummary(sigraId);
-    if (!summary) {
-      fail(`Nenhuma linha em pinho.imp_processo para id=${sigraId}. Abortando os próximos passos.`);
+    step(`getKind(${sigraId}) — em qual módulo do SIGRA o processo está`);
+    const kind = await service.getKind(sigraId);
+    if (!kind) {
+      fail(`Nenhuma linha em pinho.processo para id=${sigraId}.`);
       return;
     }
-    ok('Linha encontrada:');
-    console.log(JSON.stringify(summary, null, 2));
+    ok(`Tipo: ${kind}`);
 
-    step(`getAdditions(${sigraId}) — pinho.imp_adicao`);
-    const additions = await service.getAdditions(sigraId);
-    ok(`${additions.length} adição(ões) encontrada(s).`);
-    if (additions.length) console.log(JSON.stringify(additions, null, 2));
+    if (kind === 'IMPORT') {
+      step(`getFullProcess(${sigraId}) — imp_processo, cliente, fatura (moeda/incoterm), adições, itens`);
+      const data = await service.getFullProcess(sigraId);
+      console.log(JSON.stringify(data.summary, null, 2));
+      ok(`${data.additions.length} adição(ões), ${data.items.length} item(ns), ${data.containers.length} contêiner(es).`);
 
-    step(`getItems(${sigraId}) — pinho.imp_adicao_item`);
-    const items = await service.getItems(sigraId);
-    ok(`${items.length} item(ns) encontrado(s).`);
-    if (items.length) console.log(JSON.stringify(items, null, 2));
+      step('Rascunho que o formulário de cotação receberia (mapSigraToQuoteDraft)');
+      console.log(JSON.stringify(mapSigraToQuoteDraft(data), null, 2));
+    } else if (kind === 'EXPORT_AGENCY') {
+      step(`getAgencyProcess(${sigraId}) — age_processo (exportação com seguro)`);
+      const agency = await service.getAgencyProcess(sigraId);
+      console.log(JSON.stringify(agency, null, 2));
 
-    step(`getContainers(${sigraId}) — pinho.imp_processo_container`);
-    const containers = await service.getContainers(sigraId);
-    ok(`${containers.length} contêiner(es) encontrado(s).`);
-    if (containers.length) console.log(JSON.stringify(containers, null, 2));
+      if (agency) {
+        step('Rascunho que o formulário de cotação receberia (mapSigraAgencyToQuoteDraft)');
+        console.log(JSON.stringify(mapSigraAgencyToQuoteDraft(agency), null, 2));
+      }
+    } else {
+      ok('Processo fora de importação/agenciamento — o seguro não usa este tipo.');
+    }
+
+    step(`getDocuments(${sigraId}) — op_processo_documento → op_documento → sis_arquivo`);
+    const documents = await service.getDocuments(sigraId);
+    ok(`${documents.length} documento(s) com URL.`);
+    for (const doc of documents.slice(0, 10)) {
+      console.log(`  - ${doc.type ?? '(sem tipo)'} · ${doc.fileName ?? ''} · ${doc.url.slice(0, 60)}…`);
+    }
 
     console.log('\n=== OK — processo lido com sucesso, nenhuma escrita foi feita ===');
   } catch (err) {

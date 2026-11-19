@@ -25,6 +25,7 @@ import { StepCargo } from './steps/StepCargo';
 import { StepFinancial } from './steps/StepFinancial';
 import { StepRates } from './steps/StepRates';
 import { CommunicationPanel } from './communications/CommunicationPanel';
+import { SigraOverviewCard } from './SigraOverviewCard';
 import type { SigraDraft } from './SigraPullPanel';
 
 const STEPS = [
@@ -410,7 +411,10 @@ export default function QuoteForm() {
         </div>
 
         {!isCommunicationStep && (
-          <QuoteSummary result={result} calculating={calculating} currencyCode={currencyCode} />
+          <div className="lg:sticky lg:top-8 lg:self-start">
+            <QuoteSummary result={result} calculating={calculating} currencyCode={currencyCode} />
+            {isEditing && <SigraOverviewCard quoteId={id!} />}
+          </div>
         )}
       </div>
     </Page>

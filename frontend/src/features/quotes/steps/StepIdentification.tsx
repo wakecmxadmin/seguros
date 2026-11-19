@@ -41,10 +41,15 @@ export function StepIdentification({
 
   return (
     <div>
-      {!isEditing && values.kind === 'IMPORT' && (
+      {!isEditing && (
         <>
           <SectionTitle>Importar do SIGRA</SectionTitle>
-          <SigraPullPanel linked={sigraDraft ?? null} set={set} onLinked={onSigraLinked!} />
+          <SigraPullPanel
+            values={values}
+            linked={sigraDraft ?? null}
+            set={set}
+            onLinked={onSigraLinked!}
+          />
         </>
       )}
 
@@ -95,7 +100,12 @@ export function StepIdentification({
             endpoint="/companies/options"
             params={{ role: 'CLIENT' }}
             value={values.clientId}
-            selectedLabel={initialLabels?.client ?? null}
+            selectedLabel={
+              initialLabels?.client ??
+              (sigraDraft && values.clientId === sigraDraft.suggestion.clientId
+                ? sigraDraft.info.clientName
+                : null)
+            }
             invalid={!!errors.clientId}
             placeholder="Buscar por nome ou CNPJ"
             emptyMessage="Nenhuma empresa com papel de cliente."

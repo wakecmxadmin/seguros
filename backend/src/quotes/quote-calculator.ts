@@ -158,10 +158,13 @@ export interface CalculationResult {
  * Quanto do prêmio de exportação é cobrado do cliente, pelo incoterm.
  *
  * Conferido em 324 numerários de exportação pagos do legado (docs/19, rodada 2):
- * quando o vendedor já embute seguro e frete no preço (CIF, CIP, D-terms) cobra-se o
- * prêmio total; quando embute só o frete (CFR, CPT), o prêmio de custo + frete,
- * sem o prêmio sobre prêmio; nos demais, só o prêmio do custo. DAT, DDU, FAS e CI
- * não apareceram nos dados — classificados pela mesma lógica.
+ * quando o incoterm já embute seguro e frete (CIF, CIP, DAP, DAT, DDP) cobra-se o
+ * prêmio total; quando embute só o frete (CFR, CPT, DDU), o prêmio de custo + frete,
+ * sem o prêmio sobre prêmio; nos demais (EXW, FCA, FAS, FOB), só o prêmio do custo.
+ * É a mesma classificação das flags `frete_embutido`/`seguro_embutido` do catálogo
+ * `global.sx_incoterms` do SIGRA (docs/21, rodada 5) — de onde vem o DDU, que não
+ * apareceu nos numerários. DPU segue como total e OCV ("outra condição") como custo,
+ * pelas mesmas flags; CI (fora do catálogo do SIGRA) segue como total.
  */
 export type ChargedBasis = 'TOTAL' | 'COST_FREIGHT' | 'COST';
 
@@ -169,11 +172,13 @@ export function chargedBasis(incoterm?: string | null): ChargedBasis {
   switch (incoterm) {
     case 'CFR':
     case 'CPT':
+    case 'DDU':
       return 'COST_FREIGHT';
     case 'EXW':
     case 'FCA':
     case 'FAS':
     case 'FOB':
+    case 'OCV':
       return 'COST';
     default:
       return 'TOTAL';

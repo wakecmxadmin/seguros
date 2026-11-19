@@ -281,6 +281,8 @@ describe('calculateQuote — exportação contra o legado', () => {
     expect(chargedBasis('CIF')).toBe('TOTAL');
     expect(chargedBasis('DDP')).toBe('TOTAL');
     expect(chargedBasis('CPT')).toBe('COST_FREIGHT');
+    // DDU: frete embutido, seguro não — flags do catálogo sx_incoterms do SIGRA.
+    expect(chargedBasis('DDU')).toBe('COST_FREIGHT');
     expect(chargedBasis('FOB')).toBe('COST');
     expect(chargedBasis(undefined)).toBe('TOTAL');
   });

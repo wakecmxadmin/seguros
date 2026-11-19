@@ -1,8 +1,8 @@
 # Tarefas
 
-`**************------` **71%**
+`***************-----` **74%**
 
-**Total:** 69  ·  **Pendentes:** 20  ·  **Feitas (aguardando fechamento):** 15  ·  **Concluídas:** 34
+**Total:** 69  ·  **Pendentes:** 18  ·  **Feitas (aguardando fechamento):** 17  ·  **Concluídas:** 34
 
 ---
 
@@ -67,10 +67,14 @@
   muitas colunas cada). Usar os certificados em `backend/certs/sigra/` e as credenciais já configuradas
   no `.env` (ver `docs/SIGRA_DB.md`).
 
-- [ ] **43.** **Mapear o banco do SIGRA e identificar quais dados são úteis para este projeto.**
+- [x] **43.** **Mapear o banco do SIGRA e identificar quais dados são úteis para este projeto.**
   Depende da tarefa 47 — só depois de saber quais campos dos documentos padrão (BL, Invoice, Packing
   List, CE Mercante, CCT, TFA) existem como coluna em `pinho.imp_processo` (ou tabela satélite) dá para
   fechar esse mapeamento e complementar `docs/SIGRA_DB.md`.
+  — 19/11/2026: **concluído** em 8 rodadas (4–11) de queries rodadas pelo usuário — `docs/21-sigra-integracao-seguro.md`.
+  Chave de ligação: o ID de 7 dígitos na referência do processo de seguro é o `processo.id` do SIGRA.
+  Importação via `imp_processo` (inclui chegada por `dt_chegada_brasil`); exportação via agenciamento
+  (`age_processo`), sem valor de mercadoria. Cliente = `processo.id_parceiro` (não `id_empresa`).
 
 - [ ] **44.** **Fazer a integração de dados com o SIGRA**, a partir do mapeamento da tarefa 43 — trazer
   os campos úteis (datas do processo, valores, itens) para dentro do sistema de seguros. —
@@ -97,6 +101,14 @@
   usuário) que Identificação (data, apólice, parceiro) e Financeiro (incoterm, moeda, condições
   comerciais, comissões) não têm equivalente confiável no SIGRA hoje — incoterm e moeda existem só
   como FK numérica (`id_incoterms`/`id_moeda` em `imp_fatura`), catálogo ainda não resolvido.
+  — 19/11/2026: **integração refeita com o mapeamento da tarefa 43** (`docs/21`, seção Implementação):
+  importação e **exportação** (agenciamento) no "Puxar do SIGRA", com cliente (CNPJ), moeda, incoterm,
+  modal, país de destino e referência no formato do legado; atalho quando a referência já contém o id;
+  cartão **Processo no SIGRA** na cotação com os PDFs; sugestão de **chegada** e conhecimento na emissão
+  da definitiva; incoterms DPU/OCV (migração `20261119120000_incoterm_dpu_ocv`). 118 testes passam.
+  **Falta:** rodar `npm run sigra:test -- 1935396` e `-- 1921824` (só o usuário) para validar as
+  consultas novas contra o SIGRA real; aplicar as migrações no deploy. Fila de processos com flag de
+  seguro sem cotação ficou de fora (item 6, não aprovado).
 
 - [x] **54.** **Inserir "Cadastro de Seguradora"** (demanda do cliente, 03/11/2026). — Cadastros →
   Seguro → **Seguradoras**, que abre o cadastro unificado de Empresas restrito ao papel Seguradora,
@@ -118,7 +130,7 @@
 
 - [x] **45.** **Subir o projeto na VM e colocar para rodar em produção.**
 
-- [ ] **50.** **Testar contra mais processos reais as tabelas do SIGRA que vieram vazias só pros
+- [x] **50.** **Testar contra mais processos reais as tabelas do SIGRA que vieram vazias só pros
   dois exemplos (1901475/1898813).** Pode ser que essas tabelas simplesmente não sejam preenchidas
   pra todo processo (padrão já visto), ou pode ser que os dois exemplos escolhidos sejam atípicos
   (ambos sem CE Mercante consultado, sem BL detalhado, sem câmbio contratado). Tabelas/queries a
@@ -128,6 +140,9 @@
   `imp_processo_deducao`. Ver queries prontas em `docs/14-sigra-tabelas.md` e
   `docs/13-sigra-campos-necessarios.md`. Escolher processos variados (marítimo FCL, aéreo, com e
   sem impostos) pra não repetir o viés dos dois exemplos atuais.
+  — 19/11/2026: `imp_processo_bl` tem **0 linhas** no banco (descartada); `ce_mercante` (112 mil) e
+  `ce_manifesto_escala` (86 mil) são populadas, mas só 112 de 431 CEs dos processos com seguro estão no
+  cadastro — a chegada vem de `dt_chegada_brasil` (92 %). `trk_embarque` e `cct_tela_maritimo` parciais.
 
 - [x] **51.** **Migrar os cadastros do legado para o nosso banco.** Escopo fechado com o usuário
   (30/10/2026): **só cadastros**, sem histórico de transações — o histórico continua consultável no

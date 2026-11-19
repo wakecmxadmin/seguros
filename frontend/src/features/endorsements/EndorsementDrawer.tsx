@@ -21,6 +21,7 @@ import { formatDateTime } from '@/lib/utils';
 import { useAuth } from '@/stores/auth';
 import { POSITION_LABEL, TYPE_LABEL } from './EndorsementList';
 import { EndorsementExtensions } from './EndorsementExtensions';
+import { useSigraOverview } from '../quotes/SigraOverviewCard';
 
 interface EndorsementDrawerProps {
   id: string;
@@ -356,6 +357,16 @@ function IssueFinalDialog({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Sugestão do SIGRA (docs/21): chegada e conhecimento do processo vinculado.
+  // Só sugere — o operador decide se usa.
+  const sigra = useSigraOverview(provisional.quoteId ?? provisional.quote?.id);
+  const sigraData = sigra.data?.status === 'ok' ? sigra.data : null;
+  const sigraArrival = sigraData?.arrivalDate ?? null;
+  const sigraBl = sigraData?.documentNumber ?? null;
+  const showSigraHint =
+    (!!sigraArrival && values.berthingDate !== sigraArrival) ||
+    (!!sigraBl && !values.blNumber.trim());
+
   const issue = useMutation({
     mutationFn: () =>
       api.post('/endorsements/final', {
@@ -396,6 +407,38 @@ function IssueFinalDialog({
         />
         <form onSubmit={submit} noValidate className="contents">
           <DialogBody>
+            {showSigraHint && sigraData && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface-alt px-3 py-2 text-[13px]">
+                <span className="text-foreground">
+                  SIGRA {sigraData.sigraId}:
+                  {sigraArrival && (
+                    <>
+                      {' '}chegada <strong>{formatDate(sigraArrival)}</strong>
+                    </>
+                  )}
+                  {sigraArrival && sigraBl && ' ·'}
+                  {sigraBl && (
+                    <>
+                      {' '}conhecimento <strong>{sigraBl}</strong>
+                    </>
+                  )}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setValues((v) => ({
+                      ...v,
+                      berthingDate: sigraArrival ?? v.berthingDate,
+                      blNumber: v.blNumber.trim() ? v.blNumber : (sigraBl ?? ''),
+                    }))
+                  }
+                >
+                  Usar
+                </Button>
+              </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Importância segurada"

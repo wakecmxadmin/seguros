@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma, QuoteKind, QuotePosition, QuoteStatus, RateLineItem } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,7 +13,9 @@ import { SigraProcessService } from '../sigra/sigra-process.service';
 import type { RequestContext } from '../auth/auth.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { calculateQuote, type CalculationInput } from './quote-calculator';
-import { mapSigraToQuoteDraft } from './sigra-draft-mapper';
+import {
+  extractSigraId, mapSigraAgencyToQuoteDraft, mapSigraToQuoteDraft, type QuoteSigraDraft,
+} from './sigra-draft-mapper';
 import { resolveClientRate } from '../policies/rate-resolver';
 import { SettingsService } from '../settings/settings.service';
 import { CalculateQuoteDto, ListQuotesDto, PreviewQuoteDto, SaveQuoteDto } from './dto/quotes.dto';
@@ -668,20 +671,96 @@ export class QuotesService {
   }
 
   /**
-   * Busca um processo do SIGRA e traduz pra sugestões de preenchimento do
-   * formulário de nova cotação — usado pelo botão "Puxar do SIGRA". Não cria
-   * nem altera nada; a referência só é gravada quando a cotação é salva
-   * (ver `addReference`).
+   * Busca um processo do SIGRA e traduz em sugestões de preenchimento do
+   * formulário de nova cotação — botão "Puxar do SIGRA". Importação vem de
+   * `imp_processo`; exportação, do agenciamento (`age_processo`). Não cria nem
+   * altera nada; a referência só é gravada quando a cotação é salva.
    */
-  async getSigraDraft(sigraId: number) {
-    const data = await this.sigra.getFullProcess(sigraId);
-    if (!data.summary) {
-      throw new NotFoundException(`Processo ${sigraId} não encontrado no SIGRA.`);
-    }
-    const draft = mapSigraToQuoteDraft(data);
-    const origin = await this.resolveOriginFromLocode(data.summary.localEmbarque);
+  async getSigraDraft(sigraId: number): Promise<QuoteSigraDraft> {
+    this.assertSigraConfigured();
+    const kind = await this.sigra.getKind(sigraId);
+    if (!kind) throw new NotFoundException(`Processo ${sigraId} não encontrado no SIGRA.`);
 
-    return { ...draft, suggestion: { ...draft.suggestion, ...origin } };
+    let draft: QuoteSigraDraft;
+    if (kind === 'IMPORT') {
+      const data = await this.sigra.getFullProcess(sigraId);
+      if (!data.summary) throw new NotFoundException(`Processo ${sigraId} não encontrado no SIGRA.`);
+      draft = mapSigraToQuoteDraft(data);
+    } else if (kind === 'EXPORT_AGENCY') {
+      const agency = await this.sigra.getAgencyProcess(sigraId);
+      if (!agency) throw new NotFoundException(`Processo ${sigraId} não encontrado no SIGRA.`);
+      draft = mapSigraAgencyToQuoteDraft(agency);
+    } else {
+      throw new BadRequestException(
+        kind === 'EXPORT_CUSTOMS'
+          ? `O processo ${sigraId} é de despacho de exportação no SIGRA. Os processos com seguro ficam no agenciamento — confira o número.`
+          : `O processo ${sigraId} não é de importação nem de agenciamento no SIGRA.`,
+      );
+    }
+
+    const [clientId, currencyId, origin, destinationCountryId] = await Promise.all([
+      this.resolveSigraClient(draft.keys.clientDocument),
+      this.resolveCurrencyByCode(draft.keys.currencyCode),
+      this.resolveOriginFromLocode(draft.keys.originLocode),
+      this.resolveCountryByName(draft.keys.destinationCountryName),
+    ]);
+
+    if (draft.keys.clientDocument && !clientId) {
+      draft.missing = [
+        `Cliente (${draft.info.clientName ?? draft.keys.clientDocument} não está no cadastro)`,
+        ...draft.missing.filter((m) => m !== 'Cliente'),
+      ];
+    }
+
+    return {
+      ...draft,
+      suggestion: { ...draft.suggestion, clientId, currencyId, ...origin, destinationCountryId },
+    };
+  }
+
+  private assertSigraConfigured() {
+    if (!this.sigra.isConfigured()) {
+      throw new ServiceUnavailableException('A integração com o SIGRA não está configurada neste ambiente.');
+    }
+  }
+
+  /**
+   * Cliente do SIGRA (`processo.id_parceiro`) → nosso cadastro, pelo CNPJ.
+   * Tenta o CNPJ completo; na falta, a raiz (8 dígitos) quando só um cliente a
+   * tiver — matriz e filial costumam estar cadastradas separadas.
+   */
+  private async resolveSigraClient(document: string | null): Promise<string | null> {
+    if (!document) return null;
+    const isClient = { roles: { some: { role: 'CLIENT' as const } } };
+
+    const exact = await this.prisma.company.findFirst({
+      where: { document, active: true, ...isClient },
+      select: { id: true },
+    });
+    if (exact) return exact.id;
+    if (document.length !== 14) return null;
+
+    const sameRoot = await this.prisma.company.findMany({
+      where: { document: { startsWith: document.slice(0, 8) }, active: true, ...isClient },
+      select: { id: true },
+      take: 2,
+    });
+    return sameRoot.length === 1 ? sameRoot[0].id : null;
+  }
+
+  private async resolveCurrencyByCode(code: string | null): Promise<string | null> {
+    if (!code) return null;
+    const currency = await this.prisma.currency.findUnique({ where: { code }, select: { id: true } });
+    return currency?.id ?? null;
+  }
+
+  private async resolveCountryByName(name: string | null): Promise<string | null> {
+    if (!name) return null;
+    const country = await this.prisma.country.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' }, active: true },
+      select: { id: true },
+    });
+    return country?.id ?? null;
   }
 
   /**
@@ -690,41 +769,87 @@ export class QuotesService {
    * nosso catálogo de portos/países quando existir; senão fica `null` (o
    * operador escolhe manualmente, o catálogo tem só os portos mais usados).
    */
-  private async resolveOriginFromLocode(localEmbarque: string | null) {
-    const prefix = localEmbarque?.split(' - ')[0]?.trim().toUpperCase() ?? '';
-    if (!/^[A-Z]{5}$/.test(prefix)) {
-      return { originCountryId: null, originPortId: null };
-    }
+  private async resolveOriginFromLocode(locode: string | null) {
+    if (!locode) return { originCountryId: null, originPortId: null };
 
     const [country, port] = await Promise.all([
-      this.prisma.country.findFirst({ where: { iso2: prefix.slice(0, 2) } }),
-      this.prisma.port.findFirst({ where: { code: prefix } }),
+      this.prisma.country.findFirst({ where: { iso2: locode.slice(0, 2) } }),
+      this.prisma.port.findFirst({ where: { code: locode } }),
     ]);
 
     return { originCountryId: country?.id ?? null, originPortId: port?.id ?? null };
   }
 
   /**
-   * Dados do processo no SIGRA, localizado pela referência externa `source: 'SIGRA'`
-   * já cadastrada na cotação (ver `addReference`). `null` quando não há referência
-   * SIGRA cadastrada — não é erro, é um estado válido (processo ainda sem vínculo).
+   * Id do processo SIGRA da cotação: a referência externa `SIGRA` quando
+   * existir; senão o número de 7 dígitos dentro da referência livre, que é como
+   * o legado sempre registrou (docs/21, rodada 8).
    */
-  async getSigraData(quoteId: string, user: AuthenticatedUser) {
-    await this.findOne(quoteId, user);
-
-    const reference = await this.prisma.externalReference.findFirst({
-      where: { quoteId, source: 'SIGRA' },
+  private async sigraIdFor(quote: { id: string; reference: string | null }) {
+    const link = await this.prisma.externalReference.findFirst({
+      where: { quoteId: quote.id, source: 'SIGRA' },
     });
-    if (!reference) return null;
+    const fromLink = link ? extractSigraId(link.value) ?? (Number(link.value) || null) : null;
+    if (fromLink) return { sigraId: fromLink, linkedBy: 'link' as const };
 
-    const sigraId = Number(reference.value);
-    if (!Number.isFinite(sigraId)) {
-      throw new BadRequestException(
-        `Referência SIGRA "${reference.value}" não é um ID numérico válido.`,
-      );
+    const fromReference = extractSigraId(quote.reference);
+    return fromReference ? { sigraId: fromReference, linkedBy: 'reference' as const } : null;
+  }
+
+  /** Dados brutos do processo de importação no SIGRA vinculado à cotação (`null` sem vínculo). */
+  async getSigraData(quoteId: string, user: AuthenticatedUser) {
+    const quote = await this.findOne(quoteId, user);
+    const found = await this.sigraIdFor(quote);
+    if (!found) return null;
+    this.assertSigraConfigured();
+    return this.sigra.getFullProcess(found.sigraId);
+  }
+
+  /**
+   * Resumo do processo SIGRA vinculado à cotação, para o cartão "Processo no
+   * SIGRA" e para a sugestão de data de chegada na definitiva. Nunca lança por
+   * ausência de vínculo ou de integração — devolve o estado para a tela.
+   */
+  async getSigraOverview(quoteId: string, user: AuthenticatedUser) {
+    const quote = await this.findOne(quoteId, user);
+    const found = await this.sigraIdFor(quote);
+    if (!found) return { status: 'unlinked' as const };
+    if (!this.sigra.isConfigured()) return { status: 'unavailable' as const, sigraId: found.sigraId };
+
+    const kind = await this.sigra.getKind(found.sigraId);
+    if (!kind) return { status: 'not_found' as const, sigraId: found.sigraId, linkedBy: found.linkedBy };
+
+    const documents = await this.sigra.getDocuments(found.sigraId);
+    const base = { status: 'ok' as const, sigraId: found.sigraId, linkedBy: found.linkedBy, kind, documents };
+
+    if (kind === 'IMPORT') {
+      const summary = await this.sigra.getSummary(found.sigraId);
+      return {
+        ...base,
+        code: summary?.codigo ?? null,
+        clientName: summary?.clientName ?? null,
+        arrivalDate: summary?.arrivalDate ?? null,
+        arrivalSource: 'Chegada ao Brasil (CCT)',
+        departureDate: summary?.dtEmbarque ? new Date(summary.dtEmbarque).toISOString().slice(0, 10) : null,
+        documentNumber: summary?.docCarga ?? null,
+        vessel: null,
+      };
     }
-
-    return this.sigra.getFullProcess(sigraId);
+    if (kind === 'EXPORT_AGENCY') {
+      const agency = await this.sigra.getAgencyProcess(found.sigraId);
+      const draft = agency ? mapSigraAgencyToQuoteDraft(agency) : null;
+      return {
+        ...base,
+        code: agency?.codigo ?? null,
+        clientName: agency?.clientName ?? null,
+        arrivalDate: agency?.arrivalDate ?? null,
+        arrivalSource: 'Chegada ao destino (agenciamento)',
+        departureDate: agency?.departureDate ?? null,
+        documentNumber: agency?.documentNumber ?? null,
+        vessel: draft?.info.vessel ?? null,
+      };
+    }
+    return { ...base, code: null, clientName: null, arrivalDate: null, arrivalSource: null, departureDate: null, documentNumber: null, vessel: null };
   }
 
   /** Busca um processo por qualquer uma das referências cadastradas. */

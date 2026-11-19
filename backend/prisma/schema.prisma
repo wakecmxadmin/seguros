@@ -716,6 +716,10 @@ enum Incoterm {
   DDU
   DDP
   CI
+  /// Delivered at Place Unloaded — existe no catálogo do SIGRA (`sx_incoterms` id 14).
+  DPU
+  /// "Outra condição de venda" — SIGRA `sx_incoterms` id 15.
+  OCV
 }
 
 enum CargoCondition {

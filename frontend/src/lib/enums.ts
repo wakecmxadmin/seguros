@@ -43,6 +43,7 @@ export const CargoCondition = {
 export const Incoterm = {
   EXW: 'EXW', FCA: 'FCA', FAS: 'FAS', FOB: 'FOB', CFR: 'CFR', CIF: 'CIF',
   CPT: 'CPT', CIP: 'CIP', DAP: 'DAP', DAT: 'DAT', DDU: 'DDU', DDP: 'DDP', CI: 'CI',
+  DPU: 'DPU', OCV: 'OCV',
 } as const;
 
 export const BillingVia = {

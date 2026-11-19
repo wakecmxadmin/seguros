@@ -49,6 +49,21 @@ export interface SigraProcessSummary {
   vlPis: string | null;
   vlCofins: string | null;
 
+  /** Código do processo na Pinho (`processo.codigo`, ex.: `FRES0351/26`, `260174`). */
+  codigo: string | null;
+  /** Cliente = `processo.id_parceiro` → `sis_empresa` (não `id_empresa`, que é a própria Pinho). */
+  clientDocument: string | null;
+  clientName: string | null;
+  /** `global.sx_modal.id`: 1 Marítimo, 2 Rodoviário, 3 Aéreo, 5 Meios próprios, 7 Ferroviário. */
+  modalId: string | null;
+  /** Sigla ISO da moeda (fatura; na falta, `id_moeda_fob` do processo). */
+  currencyCode: string | null;
+  /** Código do incoterm da fatura (`global.sx_incoterms.codigo`). */
+  incotermCode: string | null;
+  invoiceNumber: string | null;
+  /** Chegada ao Brasil já como data local (`YYYY-MM-DD`) — fuso corrigido no SQL. */
+  arrivalDate: string | null;
+
   /** Número do CE Mercante "filhote" do processo. */
   ceMercante: string | null;
   /** Descrição de avaria a nível de processo (null = sem avaria). */
@@ -94,4 +109,45 @@ export interface SigraFullProcess {
   additions: SigraAddition[];
   items: SigraItem[];
   containers: SigraContainer[];
+}
+
+/** Onde o processo mora no SIGRA (docs/21 — rodadas 8 a 11). */
+export type SigraProcessKind = 'IMPORT' | 'EXPORT_AGENCY' | 'EXPORT_CUSTOMS' | 'OTHER';
+
+/**
+ * Exportação com seguro: fica no agenciamento (`pinho.age_processo`), não no
+ * despacho (`exp_processo`). Tem a logística completa, mas **não** o valor da
+ * mercadoria nem o frete segurado (docs/21, rodada 11).
+ */
+export interface SigraAgencyProcess {
+  id: string;
+  codigo: string | null;
+  clientDocument: string | null;
+  clientName: string | null;
+  /** Referência do cliente (`codigo_parceiro`) — é a "fatura" do legado. */
+  clientReference: string | null;
+  incotermCode: string | null;
+  modalId: string | null;
+  cargoType: string | null;
+  origin: string | null;
+  destination: string | null;
+  finalDestination: string | null;
+  vesselName: string | null;
+  voyage: string | null;
+  flight: string | null;
+  /** MAWB/MBL. */
+  documentNumber: string | null;
+  departureDate: string | null;
+  arrivalDate: string | null;
+  dueNumber: string | null;
+}
+
+/** PDF anexado ao processo: `op_processo_documento` → `op_documento` → `sis_arquivo`. */
+export interface SigraDocument {
+  type: string | null;
+  number: string | null;
+  createdAt: Date | null;
+  fileName: string | null;
+  url: string;
+  size: number | null;
 }

@@ -88,6 +88,17 @@ export class QuotesController {
     return this.quotes.findOne(id, user);
   }
 
+  /**
+   * Resumo do processo SIGRA da cotação (vínculo salvo ou id na referência):
+   * cliente, chegada, documento de carga e PDFs. Usado pelo cartão da cotação e
+   * pela sugestão de data na definitiva.
+   */
+  @RequirePermissions('quote:list', 'sigra:read')
+  @Get(':id/sigra/overview')
+  getSigraOverview(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quotes.getSigraOverview(id, user);
+  }
+
   /** Dados do processo no SIGRA vinculado à cotação (`null` se não houver referência SIGRA). */
   @RequirePermissions('quote:list', 'sigra:read')
   @Get(':id/sigra')
